@@ -1,8 +1,9 @@
 import { View, Pressable, Text, StyleSheet } from 'react-native';
-import type { MockBike } from '../features/bookings/mockData';
+import type { Bike } from '../features/bookings/useBookings';
+import { colors, radius } from '../theme';
 
 interface Props {
-  bikes: MockBike[];
+  bikes: Bike[];
   selectedBikeId: string | null;
   bookedBikeId: string | null;
   onSelect: (bikeId: string) => void;
@@ -43,17 +44,17 @@ const styles = StyleSheet.create({
   bike: {
     width: 64,
     height: 48,
-    borderRadius: 8,
+    borderRadius: radius.sm,
     borderWidth: 1,
-    borderColor: '#ccc',
+    borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: colors.bg,
   },
-  bikeTaken: { backgroundColor: '#eee', borderColor: '#eee' },
-  bikeSelected: { borderColor: '#111', borderWidth: 2 },
-  bikeBooked: { backgroundColor: '#111', borderColor: '#111' },
-  bikeLabel: { fontSize: 12, fontWeight: '600', color: '#111' },
-  bikeLabelTaken: { color: '#999' },
-  bikeLabelBooked: { color: '#fff' },
+  bikeTaken: { backgroundColor: colors.surfaceAlt, borderColor: colors.surfaceAlt },
+  bikeSelected: { borderColor: colors.accent, borderWidth: 2, backgroundColor: colors.accentSoft },
+  bikeBooked: { backgroundColor: colors.accent, borderColor: colors.accent },
+  bikeLabel: { fontSize: 12, fontWeight: '600', color: colors.ink },
+  bikeLabelTaken: { color: colors.locked },
+  bikeLabelBooked: { color: colors.onAccent },
 });

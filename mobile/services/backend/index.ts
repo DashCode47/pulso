@@ -5,3 +5,7 @@
 export { backend } from './client';
 export * from './auth';
 export type { AppUser } from './auth';
+export * from './bookings';
+export * from './classes';
+export * from './members';
+export * from './dashboard';

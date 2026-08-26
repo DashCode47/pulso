@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { View, Text, Pressable, FlatList, StyleSheet } from 'react-native';
 import { mockWeeklyLeaderboard, mockMonthlyLeaderboard, type LeaderboardEntry } from '../../features/leaderboard/mockData';
 import { Screen } from '../../components/Screen';
+import { colors, radius, spacing, type } from '../../theme';
 
 const periods = [
   { key: 'weekly', label: 'Semanal', data: mockWeeklyLeaderboard },
@@ -11,11 +12,16 @@ const periods = [
 const medals = ['🥇', '🥈', '🥉'];
 
 function LeaderboardRow({ entry, rank }: { entry: LeaderboardEntry; rank: number }) {
+  const isTopThree = rank <= 3;
   return (
     <View style={[styles.row, entry.isMe && styles.rowMe]}>
-      <Text style={styles.rank}>{rank <= 3 ? medals[rank - 1] : rank}</Text>
-      <Text style={[styles.name, entry.isMe && styles.nameMe]}>{entry.name}</Text>
-      <Text style={[styles.xp, entry.isMe && styles.nameMe]}>{entry.xp} XP</Text>
+      <View style={[styles.rankBadge, isTopThree && styles.rankBadgeTop]}>
+        <Text style={styles.rank}>{isTopThree ? medals[rank - 1] : rank}</Text>
+      </View>
+      <Text style={[styles.name, entry.isMe && styles.nameMe]} numberOfLines={1}>
+        {entry.name}
+      </Text>
+      <Text style={[styles.xp, entry.isMe && styles.xpMe]}>{entry.xp} XP</Text>
     </View>
   );
 }
@@ -23,6 +29,8 @@ function LeaderboardRow({ entry, rank }: { entry: LeaderboardEntry; rank: number
 export default function Leaderboard() {
   const [periodKey, setPeriodKey] = useState<(typeof periods)[number]['key']>('weekly');
   const period = periods.find((p) => p.key === periodKey)!;
+  const myEntry = period.data.find((e) => e.isMe);
+  const myRank = myEntry ? period.data.indexOf(myEntry) + 1 : null;
 
   return (
     <Screen style={styles.container}>
@@ -40,6 +48,15 @@ export default function Leaderboard() {
         ))}
       </View>
 
+      {myEntry && myRank && (
+        <View style={styles.myRankCard}>
+          <Text style={styles.myRankLabel}>Tu posición</Text>
+          <Text style={styles.myRankValue}>
+            #{myRank} · {myEntry.xp} XP
+          </Text>
+        </View>
+      )}
+
       <FlatList
         data={period.data}
         keyExtractor={(item) => item.userId}
@@ -51,26 +68,41 @@ export default function Leaderboard() {
 }
 
 const styles = StyleSheet.create({
-  container: { paddingTop: 8 },
-  title: { fontSize: 24, fontWeight: '700', paddingHorizontal: 24 },
-  pills: { flexDirection: 'row', gap: 8, paddingHorizontal: 24, marginTop: 16 },
-  pill: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: 20, backgroundColor: '#f0f0f0' },
-  pillActive: { backgroundColor: '#111' },
-  pillText: { fontWeight: '600', color: '#111' },
-  pillTextActive: { color: '#fff' },
-  list: { padding: 24, gap: 8 },
+  container: { paddingTop: spacing.sm },
+  title: { ...type.title, color: colors.ink, paddingHorizontal: spacing.xxl },
+  pills: { flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.xxl, marginTop: spacing.lg },
+  pill: { paddingVertical: spacing.sm, paddingHorizontal: spacing.lg, borderRadius: radius.pill, backgroundColor: colors.surface },
+  pillActive: { backgroundColor: colors.ink },
+  pillText: { fontWeight: '600', color: colors.ink },
+  pillTextActive: { color: colors.onDark },
+  myRankCard: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: colors.accentSoft,
+    borderRadius: radius.md,
+    padding: spacing.lg,
+    marginHorizontal: spacing.xxl,
+    marginTop: spacing.lg,
+  },
+  myRankLabel: { ...type.label, color: colors.ink },
+  myRankValue: { ...type.label, color: colors.accent },
+  list: { padding: spacing.xxl, gap: spacing.sm },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 10,
-    backgroundColor: '#f5f5f5',
-    gap: 12,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    borderRadius: radius.md,
+    backgroundColor: colors.surface,
+    gap: spacing.md,
   },
-  rowMe: { backgroundColor: '#111' },
-  rank: { width: 28, fontSize: 16, fontWeight: '700', textAlign: 'center' },
-  name: { flex: 1, fontSize: 16, fontWeight: '600' },
-  xp: { fontSize: 15, color: '#555' },
-  nameMe: { color: '#fff' },
+  rowMe: { backgroundColor: colors.ink },
+  rankBadge: { width: 32, height: 32, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center' },
+  rankBadgeTop: { backgroundColor: colors.accentSoft },
+  rank: { fontSize: 16, fontWeight: '700', textAlign: 'center', color: colors.ink },
+  name: { flex: 1, fontSize: 16, fontWeight: '600', color: colors.ink },
+  xp: { fontSize: 15, color: colors.inkSoft, fontWeight: '600' },
+  nameMe: { color: colors.onDark },
+  xpMe: { color: colors.accent },
 });

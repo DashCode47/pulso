@@ -43,6 +43,11 @@ export async function restoreSession(): Promise<AppUser | null> {
   return data.session?.user ? toAppUser(data.session.user) : null;
 }
 
+export async function isAdmin(): Promise<boolean> {
+  const { data, error } = await backend.rpc('is_admin');
+  return !error && data === true;
+}
+
 export function onAuthStateChange(callback: (user: AppUser | null) => void) {
   const { data } = backend.auth.onAuthStateChange((_event, session) => {
     callback(session?.user ? toAppUser(session.user) : null);
