@@ -18,7 +18,7 @@ export function useUserStats() {
     queryKey: ['user_stats', userId],
     enabled: !!userId,
     queryFn: async () => {
-      const { data, error } = await backend.database
+      const { data, error } = await backend
         .from('user_stats')
         .select('total_xp, current_level, current_streak_weeks, max_streak_weeks, classes_completed, credits_balance')
         .eq('user_id', userId)

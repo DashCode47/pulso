@@ -1,5 +1,5 @@
 import { backend } from './client';
-import { secureStorage } from './secureStorage';
+import type { User } from '@supabase/supabase-js';
 
 export type AppUser = {
   id: string;
@@ -7,49 +7,45 @@ export type AppUser = {
   name: string | null;
 };
 
-function toAppUser(user: { id: string; email: string; profile: { name?: string } | null }): AppUser {
-  return { id: user.id, email: user.email, name: user.profile?.name ?? null };
+function toAppUser(user: User): AppUser {
+  return { id: user.id, email: user.email ?? '', name: user.user_metadata?.full_name ?? null };
 }
 
 export async function signUp(params: { email: string; password: string; name: string }) {
-  const { data, error } = await backend.auth.signUp(params);
-  if (data?.refreshToken) await secureStorage.setRefreshToken(data.refreshToken);
+  const { data, error } = await backend.auth.signUp({
+    email: params.email,
+    password: params.password,
+    options: { data: { full_name: params.name } },
+  });
   return {
     user: data?.user ? toAppUser(data.user) : null,
-    requireEmailVerification: data?.requireEmailVerification ?? false,
+    // Supabase issues no session yet when email confirmation is required --
+    // the user must click the link in their inbox before they can sign in.
+    requiresEmailConfirmation: !!data?.user && !data.session,
     error,
   };
 }
 
-export async function verifyEmail(params: { email: string; otp: string }) {
-  const { data, error } = await backend.auth.verifyEmail(params);
-  if (data?.refreshToken) await secureStorage.setRefreshToken(data.refreshToken);
-  return { user: data?.user ? toAppUser(data.user) : null, error };
-}
-
 export async function signInWithPassword(params: { email: string; password: string }) {
   const { data, error } = await backend.auth.signInWithPassword(params);
-  if (data?.refreshToken) await secureStorage.setRefreshToken(data.refreshToken);
   return { user: data?.user ? toAppUser(data.user) : null, error };
 }
 
 export async function signOut() {
   const { error } = await backend.auth.signOut();
-  await secureStorage.clearRefreshToken();
   return { error };
 }
 
-// Called once on app launch. There's no browser session to read on cold
-// start (see client.ts), so this is the only way the app knows whether the
-// user is still signed in.
+// supabase-js reads the persisted session from LargeSecureStore
+// automatically (see client.ts) -- this just surfaces it as an AppUser.
 export async function restoreSession(): Promise<AppUser | null> {
-  const refreshToken = await secureStorage.getRefreshToken();
-  if (!refreshToken) return null;
+  const { data } = await backend.auth.getSession();
+  return data.session?.user ? toAppUser(data.session.user) : null;
+}
 
-  const { data, error } = await backend.auth.refreshSession({ refreshToken });
-  if (error || !data) {
-    await secureStorage.clearRefreshToken();
-    return null;
-  }
-  return toAppUser(data.user);
+export function onAuthStateChange(callback: (user: AppUser | null) => void) {
+  const { data } = backend.auth.onAuthStateChange((_event, session) => {
+    callback(session?.user ? toAppUser(session.user) : null);
+  });
+  return () => data.subscription.unsubscribe();
 }

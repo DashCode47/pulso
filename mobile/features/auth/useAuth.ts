@@ -2,7 +2,8 @@ import { useEffect } from 'react';
 import * as backendAuth from '../../services/backend';
 import { useAuthStore } from './store';
 
-// Runs once from the root layout to hydrate session state on app launch.
+// Runs once from the root layout to hydrate session state on app launch,
+// then keeps it in sync (token refresh, sign-out from another tab/device).
 export function useSessionHydration() {
   const setUser = useAuthStore((s) => s.setUser);
   const setLoading = useAuthStore((s) => s.setLoading);
@@ -15,8 +16,14 @@ export function useSessionHydration() {
         setLoading(false);
       }
     });
+
+    const unsubscribe = backendAuth.onAuthStateChange((user) => {
+      if (!cancelled) setUser(user);
+    });
+
     return () => {
       cancelled = true;
+      unsubscribe();
     };
   }, [setUser, setLoading]);
 }
@@ -35,14 +42,9 @@ export function useAuth() {
       return { error };
     },
     async signUp(email: string, password: string, name: string) {
-      const { user, requireEmailVerification, error } = await backendAuth.signUp({ email, password, name });
-      if (user) setUser(user);
-      return { error, requireEmailVerification };
-    },
-    async verifyEmail(email: string, otp: string) {
-      const { user, error } = await backendAuth.verifyEmail({ email, otp });
-      if (user) setUser(user);
-      return { error };
+      const { user, requiresEmailConfirmation, error } = await backendAuth.signUp({ email, password, name });
+      if (user && !requiresEmailConfirmation) setUser(user);
+      return { error, requiresEmailConfirmation };
     },
     async signOut() {
       await backendAuth.signOut();

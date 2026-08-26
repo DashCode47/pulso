@@ -5,48 +5,33 @@ import { useAuth } from '../../features/auth/useAuth';
 import { Screen } from '../../components/Screen';
 
 export default function SignUp() {
-  const { signUp, verifyEmail } = useAuth();
+  const { signUp } = useAuth();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [otp, setOtp] = useState('');
-  const [awaitingCode, setAwaitingCode] = useState(false);
+  const [confirmationSent, setConfirmationSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   async function handleSignUp() {
     setError(null);
     setSubmitting(true);
-    const { error, requireEmailVerification } = await signUp(email, password, name);
+    const { error, requiresEmailConfirmation } = await signUp(email, password, name);
     setSubmitting(false);
     if (error) return setError(error.message);
-    if (requireEmailVerification) setAwaitingCode(true);
+    if (requiresEmailConfirmation) setConfirmationSent(true);
   }
 
-  async function handleVerify() {
-    setError(null);
-    setSubmitting(true);
-    const { error } = await verifyEmail(email, otp);
-    setSubmitting(false);
-    if (error) setError(error.message);
-  }
-
-  if (awaitingCode) {
+  if (confirmationSent) {
     return (
       <Screen edges={['top', 'bottom']} style={styles.container}>
         <Text style={styles.title}>Revisa tu correo</Text>
-        <Text>Te enviamos un código a {email}.</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Código de 6 dígitos"
-          keyboardType="number-pad"
-          value={otp}
-          onChangeText={setOtp}
-        />
-        {error && <Text style={styles.error}>{error}</Text>}
-        <Pressable style={styles.button} onPress={handleVerify} disabled={submitting}>
-          <Text style={styles.buttonText}>{submitting ? 'Verificando...' : 'Verificar'}</Text>
-        </Pressable>
+        <Text>
+          Te enviamos un enlace de confirmación a {email}. Ábrelo y después vuelve para iniciar sesión.
+        </Text>
+        <Link href="/(auth)/sign-in" style={styles.link}>
+          <Text>Ir a iniciar sesión</Text>
+        </Link>
       </Screen>
     );
   }

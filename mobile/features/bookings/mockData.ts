@@ -1,5 +1,5 @@
 // Datos de muestra para iterar la UI de reservas antes de conectar el
-// backend real. La forma coincide con lo que vamos a traer de InsForge
+// backend real. La forma coincide con lo que vamos a traer de Supabase
 // (classes + bikes + reservations) para que el swap después sea directo.
 export interface MockBike {
   id: string;

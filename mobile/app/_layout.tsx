@@ -1,3 +1,5 @@
+import 'react-native-url-polyfill/auto';
+import 'react-native-get-random-values';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { Stack } from 'expo-router';
 import { View, ActivityIndicator } from 'react-native';

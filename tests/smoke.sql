@@ -1,25 +1,31 @@
 -- Regression check for the booking/credits/waitlist/gamification RPCs in
--- ../migrations/20260823234828_business-logic.sql. This is the money/
--- security path of the app (credit ledger, RLS, double-booking prevention)
--- so it gets one runnable check instead of only manual testing.
+-- supabase/migrations/*business-logic.sql. This is the money/security path
+-- of the app (credit ledger, RLS, double-booking prevention) so it gets one
+-- runnable check instead of only manual testing.
 --
--- Run against the InsForge project's Postgres (get the URL with
--- `npx -y @insforge/cli db connection-string`):
---   psql "<connection-string>" -f tests/smoke.sql
+-- Run against the linked Supabase project:
+--   npx supabase db query --linked --file tests/smoke.sql
 --
 -- Everything happens inside one transaction that's rolled back at the end,
 -- so it's safe to run repeatedly. A failed assertion raises an exception
--- and aborts with a non-zero psql exit code.
+-- and aborts with a non-zero exit code.
 
 BEGIN;
 SET client_min_messages TO warning;
 SET LOCAL search_path = public;
 
-INSERT INTO auth.users (id, email, profile) VALUES
-  ('00000000-0000-0000-0000-000000000001', 'admin@test.local', '{"name": "Admin"}'),
-  ('00000000-0000-0000-0000-000000000002', 'alice@test.local', '{"name": "Alice"}'),
-  ('00000000-0000-0000-0000-000000000003', 'bob@test.local',   '{"name": "Bob"}'),
-  ('00000000-0000-0000-0000-000000000004', 'carol@test.local', '{"name": "Carol"}');
+INSERT INTO auth.users (id, email, encrypted_password, email_confirmed_at, created_at, updated_at, aud, role)
+VALUES
+  ('00000000-0000-0000-0000-000000000001', 'admin@test.local', 'x', now(), now(), now(), 'authenticated', 'authenticated'),
+  ('00000000-0000-0000-0000-000000000002', 'alice@test.local', 'x', now(), now(), now(), 'authenticated', 'authenticated'),
+  ('00000000-0000-0000-0000-000000000003', 'bob@test.local',   'x', now(), now(), now(), 'authenticated', 'authenticated'),
+  ('00000000-0000-0000-0000-000000000004', 'carol@test.local', 'x', now(), now(), now(), 'authenticated', 'authenticated');
+
+-- profiles are auto-created by the on_auth_user_created trigger; just fix up names
+UPDATE profiles SET full_name = 'Admin' WHERE id = '00000000-0000-0000-0000-000000000001';
+UPDATE profiles SET full_name = 'Alice' WHERE id = '00000000-0000-0000-0000-000000000002';
+UPDATE profiles SET full_name = 'Bob' WHERE id = '00000000-0000-0000-0000-000000000003';
+UPDATE profiles SET full_name = 'Carol' WHERE id = '00000000-0000-0000-0000-000000000004';
 
 INSERT INTO admins (user_id) VALUES ('00000000-0000-0000-0000-000000000001');
 
@@ -104,7 +110,7 @@ BEGIN
   -- class completion sweep awards XP and unlocks the first-ride achievement
   RESET ROLE;
   UPDATE classes SET starts_at = now() - interval '2 hours' WHERE id = v_class;
-  PERFORM run_scheduled_job('close_finished_classes');
+  PERFORM close_finished_classes();
 
   SELECT total_xp INTO v_xp FROM user_stats WHERE user_id = v_bob;
   IF v_xp <> 200 THEN -- 100 class_completed + 100 first_ride achievement
@@ -136,11 +142,11 @@ BEGIN
     RAISE EXCEPTION 'assertion failed: Alice should have 15 credits, got %', v_credits;
   END IF;
 
-  -- scheduled job dispatcher runs cleanly with no matching rows
-  PERFORM run_scheduled_job('expire_waitlist_offers');
-  PERFORM run_scheduled_job('queue_class_reminders');
-  PERFORM run_scheduled_job('grant_monthly_credits');
-  PERFORM run_scheduled_job('update_weekly_streaks');
+  -- scheduled job functions run cleanly with no matching rows
+  PERFORM expire_waitlist_offers();
+  PERFORM queue_class_reminders();
+  PERFORM grant_monthly_credits();
+  PERFORM update_weekly_streaks();
 
   RAISE NOTICE 'smoke test passed';
 END;
