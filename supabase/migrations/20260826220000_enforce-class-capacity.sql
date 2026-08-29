@@ -24,7 +24,7 @@ begin
   select * into v_class from public.classes where id = p_class_id for update;
   if v_class is null or v_class.status <> 'scheduled' then
     raise exception 'class_not_available';
-  end if;
+  end if; 
   if v_class.starts_at <= now() then
     raise exception 'class_already_started';
   end if;
