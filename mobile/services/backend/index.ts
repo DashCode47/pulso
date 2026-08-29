@@ -9,3 +9,4 @@ export * from './bookings';
 export * from './classes';
 export * from './members';
 export * from './dashboard';
+export * from './profile';

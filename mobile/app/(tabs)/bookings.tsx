@@ -2,17 +2,10 @@ import { useState } from 'react';
 import { View, Text, Pressable, ScrollView, ActivityIndicator, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useUpcomingClasses, groupClassesByDay, useBookingActions } from '../../features/bookings/useBookings';
+import { BOOK_ERROR_MESSAGES, CANCEL_ERROR_MESSAGES } from '../../features/bookings/errorMessages';
 import { ClassCard } from '../../components/ClassCard';
 import { Screen } from '../../components/Screen';
 import { colors, radius, spacing, type } from '../../theme';
-
-const BOOK_ERROR_MESSAGES: Record<string, string> = {
-  no_active_membership: 'No tienes una membresía activa.',
-  class_not_available: 'Esta clase ya no está disponible.',
-  class_already_started: 'Esta clase ya comenzó.',
-  insufficient_credits: 'No te quedan créditos.',
-  bike_or_class_unavailable: 'Alguien más tomó esa bici, elige otra.',
-};
 
 export default function Bookings() {
   const { data: classes, isLoading, isError } = useUpcomingClasses();
@@ -50,7 +43,7 @@ export default function Bookings() {
   async function handleCancel(classId: string) {
     setActionError(null);
     const { error } = await cancel(classId);
-    if (error) setActionError('No se pudo cancelar.');
+    if (error) setActionError(CANCEL_ERROR_MESSAGES[error.message] ?? 'No se pudo cancelar.');
   }
 
   return (

@@ -13,13 +13,17 @@ const statusLabel: Record<backend.AdminClass['status'], string> = {
   cancelled: 'Cancelada',
 };
 
-const emptyForm = { title: '', trainerName: '', durationMinutes: '', capacity: '' };
+const emptyForm = { title: '', instructorId: '', durationMinutes: '', capacity: '' };
 
 export default function Admin() {
   const queryClient = useQueryClient();
   const { data: classes, isLoading } = useQuery({
     queryKey: ['admin', 'classes'],
     queryFn: backend.listAllUpcomingClasses,
+  });
+  const { data: instructors, refetch: refetchInstructors } = useQuery({
+    queryKey: ['admin', 'instructors'],
+    queryFn: backend.listInstructors,
   });
 
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -29,9 +33,11 @@ export default function Admin() {
   const [submitting, setSubmitting] = useState(false);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+  const [newInstructorName, setNewInstructorName] = useState('');
+  const [addingInstructor, setAddingInstructor] = useState(false);
 
   const isEditing = editingId !== null;
-  const canSubmit = form.title.trim().length > 0 && form.trainerName.trim().length > 0 && Number(form.durationMinutes) > 0 && Number(form.capacity) > 0;
+  const canSubmit = form.title.trim().length > 0 && form.instructorId.length > 0 && Number(form.durationMinutes) > 0 && Number(form.capacity) > 0;
 
   function resetForm() {
     setEditingId(null);
@@ -42,9 +48,24 @@ export default function Admin() {
 
   function startEditing(c: backend.AdminClass) {
     setEditingId(c.id);
-    setForm({ title: c.title, trainerName: c.trainerName, durationMinutes: String(c.durationMinutes), capacity: String(c.capacity) });
+    setForm({ title: c.title, instructorId: c.instructorId, durationMinutes: String(c.durationMinutes), capacity: String(c.capacity) });
     setStartsAt(new Date(c.startsAt));
     setFormError(null);
+  }
+
+  async function handleAddInstructor() {
+    const name = newInstructorName.trim();
+    if (!name || addingInstructor) return;
+    setAddingInstructor(true);
+    const { instructor, error } = await backend.createInstructor(name);
+    setAddingInstructor(false);
+    if (error || !instructor) {
+      setFormError('No se pudo agregar el instructor.');
+      return;
+    }
+    setNewInstructorName('');
+    setForm((f) => ({ ...f, instructorId: instructor.id }));
+    refetchInstructors();
   }
 
   async function handleSubmit() {
@@ -54,7 +75,7 @@ export default function Admin() {
 
     const input = {
       title: form.title.trim(),
-      trainerName: form.trainerName.trim(),
+      instructorId: form.instructorId,
       startsAt,
       durationMinutes: Number(form.durationMinutes),
       capacity: Number(form.capacity),
@@ -113,13 +134,34 @@ export default function Admin() {
             value={form.title}
             onChangeText={(title) => setForm((f) => ({ ...f, title }))}
           />
-          <TextInput
-            style={styles.input}
-            placeholder="Instructor"
-            placeholderTextColor={colors.inkMuted}
-            value={form.trainerName}
-            onChangeText={(trainerName) => setForm((f) => ({ ...f, trainerName }))}
-          />
+          <Text style={styles.fieldLabel}>Instructor</Text>
+          <View style={styles.chipRow}>
+            {(instructors ?? []).filter((i) => i.active).map((i) => (
+              <Pressable
+                key={i.id}
+                style={[styles.chip, form.instructorId === i.id && styles.chipSelected]}
+                onPress={() => setForm((f) => ({ ...f, instructorId: i.id }))}
+              >
+                <Text style={[styles.chipText, form.instructorId === i.id && styles.chipTextSelected]}>{i.name}</Text>
+              </Pressable>
+            ))}
+          </View>
+          <View style={styles.row}>
+            <TextInput
+              style={[styles.input, styles.inputHalf]}
+              placeholder="Nuevo instructor"
+              placeholderTextColor={colors.inkMuted}
+              value={newInstructorName}
+              onChangeText={setNewInstructorName}
+            />
+            <Pressable style={styles.addInstructorButton} disabled={addingInstructor} onPress={handleAddInstructor}>
+              {addingInstructor ? (
+                <ActivityIndicator size="small" color={colors.onAccent} />
+              ) : (
+                <Text style={styles.addInstructorButtonText}>Agregar</Text>
+              )}
+            </Pressable>
+          </View>
 
           <View style={styles.row}>
             <Pressable style={styles.dateButton} onPress={() => setShowPicker('date')}>
@@ -194,7 +236,7 @@ export default function Admin() {
                     <Text style={styles.classTitle}>{c.title}</Text>
                     <Text style={styles.classMeta}>
                       {new Date(c.startsAt).toLocaleString('es', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })} ·{' '}
-                      {c.durationMinutes} min · {c.trainerName} · {c.capacity} bicis
+                      {c.durationMinutes} min · {c.instructorName} · {c.capacity} bicis
                     </Text>
                     <Text style={[styles.classStatus, isCancelled && styles.classStatusCancelled]}>{statusLabel[c.status]}</Text>
                   </Pressable>
@@ -230,6 +272,26 @@ const styles = StyleSheet.create({
   formCard: { backgroundColor: colors.surface, borderRadius: radius.md, padding: spacing.lg, gap: spacing.md },
   formHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   cancelEditText: { color: colors.accent, fontWeight: '600', fontSize: 13 },
+  fieldLabel: { ...type.label, color: colors.inkSoft },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  chip: {
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingVertical: 6,
+    paddingHorizontal: spacing.md,
+  },
+  chipSelected: { backgroundColor: colors.accent, borderColor: colors.accent },
+  chipText: { fontSize: 13, fontWeight: '600', color: colors.ink },
+  chipTextSelected: { color: colors.onAccent },
+  addInstructorButton: {
+    backgroundColor: colors.ink,
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addInstructorButtonText: { color: colors.onDark, fontWeight: '600', fontSize: 13 },
   input: {
     backgroundColor: colors.bg,
     borderRadius: radius.sm,

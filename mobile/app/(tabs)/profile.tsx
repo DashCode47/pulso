@@ -1,19 +1,66 @@
-import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
+import { useState } from 'react';
+import { View, Text, Pressable, ScrollView, ActivityIndicator, Alert, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../features/auth/useAuth';
-import { mockMembership, mockHistory, historyStatusLabel, type HistoryStatus } from '../../features/profile/mockData';
+import { CANCEL_ERROR_MESSAGES } from '../../features/bookings/errorMessages';
+import * as backend from '../../services/backend';
 import { ProgressBar } from '../../components/ProgressBar';
 import { Screen } from '../../components/Screen';
 import { colors, radius, spacing, type } from '../../theme';
 
-const statusStyle: Record<HistoryStatus, { color: string; bg: string; icon: keyof typeof Ionicons.glyphMap }> = {
-  attended: { color: colors.success, bg: '#e6f4ea', icon: 'checkmark-circle' },
-  cancelled: { color: colors.locked, bg: colors.surfaceAlt, icon: 'close-circle' },
-  no_show: { color: colors.danger, bg: '#fdeceb', icon: 'alert-circle' },
+const pastStatusStyle: Record<'attended' | 'cancelled' | 'no_show', { label: string; color: string; bg: string; icon: keyof typeof Ionicons.glyphMap }> = {
+  attended: { label: 'Asististe', color: colors.success, bg: '#e6f4ea', icon: 'checkmark-circle' },
+  cancelled: { label: 'Cancelada', color: colors.locked, bg: colors.surfaceAlt, icon: 'close-circle' },
+  no_show: { label: 'No-show', color: colors.danger, bg: '#fdeceb', icon: 'alert-circle' },
+};
+
+const membershipStatusLabel: Record<backend.MyMembership['status'], string> = {
+  active: 'Activa',
+  paused: 'Pausada',
+  cancelled: 'Cancelada',
+  expired: 'Vencida',
 };
 
 export default function Profile() {
   const { user, isAdmin, signOut } = useAuth();
+  const queryClient = useQueryClient();
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const { data: membership, isLoading: loadingMembership } = useQuery({
+    queryKey: ['my-membership'],
+    queryFn: backend.getMyMembership,
+    enabled: !isAdmin,
+  });
+  const { data: history, isLoading: loadingHistory } = useQuery({
+    queryKey: ['my-history'],
+    queryFn: backend.listMyHistory,
+    enabled: !isAdmin,
+  });
+
+  const upcoming = (history ?? []).filter((h) => h.status === 'booked');
+  const past = (history ?? []).filter((h) => h.status !== 'booked') as (backend.MyHistoryEntry & {
+    status: 'attended' | 'cancelled' | 'no_show';
+  })[];
+
+  function confirmCancel(entry: backend.MyHistoryEntry) {
+    Alert.alert('Cancelar reserva', `¿Cancelar tu reserva para "${entry.classTitle}"?`, [
+      { text: 'No', style: 'cancel' },
+      {
+        text: 'Sí, cancelar',
+        style: 'destructive',
+        onPress: async () => {
+          setCancellingId(entry.id);
+          const { error } = await backend.cancelReservation(entry.id);
+          setCancellingId(null);
+          if (error) {
+            Alert.alert('Error', CANCEL_ERROR_MESSAGES[error.message] ?? 'No se pudo cancelar la reserva.');
+            return;
+          }
+          await queryClient.invalidateQueries({ queryKey: ['my-history'] });
+        },
+      },
+    ]);
+  }
 
   return (
     <Screen>
@@ -35,36 +82,92 @@ export default function Profile() {
 
         {!isAdmin && (
           <>
-            <View style={styles.membershipCard}>
-              <View style={styles.membershipHeader}>
-                <Text style={styles.membershipPlan}>Plan {mockMembership.planName}</Text>
-                <Text style={styles.membershipCredits}>
-                  {mockMembership.creditsBalance}/{mockMembership.creditsPerCycle}
+            {loadingMembership ? (
+              <ActivityIndicator color={colors.accent} />
+            ) : membership ? (
+              <View style={styles.membershipCard}>
+                <View style={styles.membershipHeader}>
+                  <Text style={styles.membershipPlan}>Plan {membership.planName}</Text>
+                  <Text style={styles.membershipCredits}>
+                    {membership.creditsBalance}/{membership.creditsPerCycle}
+                  </Text>
+                </View>
+                <ProgressBar progress={membership.creditsBalance / membership.creditsPerCycle} />
+                <Text style={styles.membershipRenews}>
+                  {membership.status === 'active'
+                    ? `Vence el ${new Date(membership.cycleEnd).toLocaleDateString('es', { day: '2-digit', month: 'long' })}`
+                    : membershipStatusLabel[membership.status]}
                 </Text>
               </View>
-              <ProgressBar progress={mockMembership.creditsBalance / mockMembership.creditsPerCycle} />
-              <Text style={styles.membershipRenews}>Se renueva el {mockMembership.renewsOn}</Text>
+            ) : (
+              <View style={styles.noMembershipCard}>
+                <Ionicons name="card-outline" size={24} color={colors.inkMuted} />
+                <Text style={styles.noMembershipText}>No tienes una membresía activa todavía.</Text>
+              </View>
+            )}
+
+            <View>
+              <Text style={styles.sectionTitle}>Mis reservas</Text>
+              {loadingHistory ? (
+                <ActivityIndicator color={colors.accent} />
+              ) : (
+                <View style={styles.historyList}>
+                  {upcoming.map((entry) => (
+                    <View key={entry.id} style={styles.upcomingRow}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.historyTitle}>{entry.classTitle}</Text>
+                        <Text style={styles.historyDate}>
+                          {entry.startsAt
+                            ? new Date(entry.startsAt).toLocaleDateString('es', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
+                            : ''}
+                        </Text>
+                      </View>
+                      <Pressable
+                        style={styles.cancelUpcomingButton}
+                        disabled={cancellingId === entry.id}
+                        onPress={() => confirmCancel(entry)}
+                      >
+                        {cancellingId === entry.id ? (
+                          <ActivityIndicator size="small" color={colors.danger} />
+                        ) : (
+                          <Text style={styles.cancelUpcomingButtonText}>Cancelar</Text>
+                        )}
+                      </Pressable>
+                    </View>
+                  ))}
+                  {upcoming.length === 0 && <Text style={styles.emptyText}>No tienes reservas próximas.</Text>}
+                </View>
+              )}
             </View>
 
             <View>
               <Text style={styles.sectionTitle}>Historial</Text>
-              <View style={styles.historyList}>
-                {mockHistory.map((entry) => {
-                  const s = statusStyle[entry.status];
-                  return (
-                    <View key={entry.id} style={styles.historyRow}>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.historyTitle}>{entry.title}</Text>
-                        <Text style={styles.historyDate}>{entry.date}</Text>
+              {loadingHistory ? (
+                <ActivityIndicator color={colors.accent} />
+              ) : (
+                <View style={styles.historyList}>
+                  {past.map((entry) => {
+                    const s = pastStatusStyle[entry.status];
+                    return (
+                      <View key={entry.id} style={styles.historyRow}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.historyTitle}>{entry.classTitle}</Text>
+                          <Text style={styles.historyDate}>
+                            {entry.startsAt
+                              ? new Date(entry.startsAt).toLocaleDateString('es', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
+                              : ''}
+                          </Text>
+                        </View>
+                        <View style={[styles.historyBadge, { backgroundColor: s.bg }]}>
+                          <Ionicons name={s.icon} size={13} color={s.color} />
+                          <Text style={[styles.historyStatus, { color: s.color }]}>{s.label}</Text>
+                        </View>
                       </View>
-                      <View style={[styles.historyBadge, { backgroundColor: s.bg }]}>
-                        <Ionicons name={s.icon} size={13} color={s.color} />
-                        <Text style={[styles.historyStatus, { color: s.color }]}>{historyStatusLabel[entry.status]}</Text>
-                      </View>
-                    </View>
-                  );
-                })}
-              </View>
+                    );
+                  })}
+                  {past.length === 0 && <Text style={styles.emptyText}>Todavía no tienes historial.</Text>}
+                </View>
+              )}
             </View>
           </>
         )}
@@ -94,8 +197,28 @@ const styles = StyleSheet.create({
   membershipCredits: { ...type.h2, color: colors.accent },
   membershipRenews: { ...type.caption, color: colors.inkSoft },
 
+  noMembershipCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    padding: spacing.xl,
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  noMembershipText: { color: colors.inkSoft, fontSize: 14, textAlign: 'center' },
+
   sectionTitle: { ...type.h2, color: colors.ink, marginBottom: spacing.sm },
   historyList: { gap: spacing.sm },
+  upcomingRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: colors.accentSoft,
+    borderRadius: radius.sm,
+    padding: spacing.md,
+    gap: spacing.sm,
+  },
+  cancelUpcomingButton: { borderWidth: 1, borderColor: colors.danger, borderRadius: radius.sm, paddingVertical: spacing.xs, paddingHorizontal: spacing.sm },
+  cancelUpcomingButtonText: { color: colors.danger, fontWeight: '600', fontSize: 12 },
   historyRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -116,6 +239,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
   },
   historyStatus: { fontSize: 12, fontWeight: '700' },
+  emptyText: { color: colors.inkSoft, fontSize: 14 },
 
   signOutButton: {
     flexDirection: 'row',

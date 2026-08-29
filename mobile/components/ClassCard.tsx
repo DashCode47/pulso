@@ -36,7 +36,7 @@ export function ClassCard({ classInfo, bookedBikeId, onBook, onCancel }: Props) 
           <Text style={styles.title}>{classInfo.title}</Text>
           <Text style={styles.meta}>
             {new Date(classInfo.startsAt).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })} ·{' '}
-            {classInfo.durationMinutes} min · {classInfo.trainerName}
+            {classInfo.durationMinutes} min · {classInfo.instructorName}
           </Text>
         </View>
         <View style={styles.headerRight}>

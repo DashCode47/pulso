@@ -5,7 +5,7 @@ export type Bike = { id: string; label: string; taken: boolean };
 export type ClassWithBikes = {
   id: string;
   title: string;
-  trainerName: string;
+  instructorName: string;
   startsAt: string;
   durationMinutes: number;
   capacity: number;
@@ -18,7 +18,7 @@ export type ClassWithBikes = {
 export async function listUpcomingClasses(): Promise<ClassWithBikes[]> {
   const { data: classes, error: classesError } = await backend
     .from('classes')
-    .select('id, title, trainer_name, starts_at, duration_minutes, capacity')
+    .select('id, title, instructors(name), starts_at, duration_minutes, capacity')
     .eq('status', 'scheduled')
     .gte('starts_at', new Date().toISOString())
     .order('starts_at');
@@ -46,7 +46,7 @@ export async function listUpcomingClasses(): Promise<ClassWithBikes[]> {
     return {
       id: c.id,
       title: c.title,
-      trainerName: c.trainer_name,
+      instructorName: c.instructors[0]?.name ?? '',
       startsAt: c.starts_at,
       durationMinutes: c.duration_minutes,
       capacity: c.capacity,
