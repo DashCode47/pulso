@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { View, Text, TextInput, Pressable, ScrollView, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, TextInput, Pressable, ScrollView, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import * as backend from '../../services/backend';
 import { Screen } from '../../components/Screen';
+import { PulseLine } from '../../components/PulseLine';
 import { colors, radius, spacing, type } from '../../theme';
 
 const reservationStatusLabel: Record<backend.MemberReservation['status'], string> = {
@@ -76,7 +77,7 @@ function MemberRow({ member }: { member: backend.MemberSummary }) {
 
           <Text style={styles.historyTitle}>Reservas recientes</Text>
           {isLoading ? (
-            <ActivityIndicator color={colors.accent} />
+            <PulseLine bg={colors.surface} style={{ alignSelf: 'center' }} />
           ) : (
             (reservations ?? []).map((r) => (
               <View key={r.id} style={styles.reservationRow}>
@@ -130,7 +131,7 @@ export default function Members() {
         />
 
         {isLoading ? (
-          <ActivityIndicator color={colors.accent} style={{ marginTop: spacing.xl }} />
+          <PulseLine style={{ alignSelf: 'center', marginTop: spacing.xl }} />
         ) : (
           <ScrollView contentContainerStyle={styles.list}>
             {(members ?? []).map((m) => (
@@ -149,7 +150,9 @@ const styles = StyleSheet.create({
   title: { ...type.title, color: colors.ink },
   search: {
     backgroundColor: colors.surface,
-    borderRadius: radius.sm,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    borderRadius: radius.pill,
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.lg,
     fontSize: 15,
@@ -157,11 +160,17 @@ const styles = StyleSheet.create({
   },
   list: { gap: spacing.md, paddingBottom: spacing.xxl },
 
-  card: { backgroundColor: colors.surface, borderRadius: radius.md, overflow: 'hidden' },
+  card: {
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    overflow: 'hidden',
+  },
   header: { flexDirection: 'row', alignItems: 'center', padding: spacing.lg, gap: spacing.sm },
   name: { fontSize: 15, fontWeight: '700', color: colors.ink },
   meta: { ...type.caption, color: colors.inkSoft, marginTop: 2 },
-  credits: { ...type.label, color: colors.accent },
+  credits: { ...type.label, color: colors.ink },
 
   body: { paddingHorizontal: spacing.lg, paddingBottom: spacing.lg, gap: spacing.md },
   adjustRow: { flexDirection: 'row', gap: spacing.sm },
@@ -176,9 +185,9 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.ink,
   },
-  adjustButton: { backgroundColor: colors.ink, borderRadius: radius.sm, paddingHorizontal: spacing.lg, justifyContent: 'center' },
-  adjustButtonDisabled: { backgroundColor: colors.locked },
-  adjustButtonText: { color: colors.onDark, fontWeight: '600', fontSize: 13 },
+  adjustButton: { backgroundColor: colors.accent, borderRadius: radius.sm, paddingHorizontal: spacing.lg, justifyContent: 'center' },
+  adjustButtonDisabled: { opacity: 0.3 },
+  adjustButtonText: { color: colors.onAccent, fontWeight: '700', fontSize: 13 },
 
   historyTitle: { ...type.label, color: colors.ink },
   reservationRow: {

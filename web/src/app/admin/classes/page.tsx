@@ -2,6 +2,15 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { AdminClass, ClassRoster, cancelClass, listClassRoster, listUpcomingClasses } from '@/lib/classes';
+import { Badge, Button, Card, EmptyState, ErrorBanner, PageHeader } from '@/components/ui';
+import { useConfirm } from '@/components/confirm-dialog';
+import { ChevronRightIcon } from '@/components/icons';
+
+const statusTone: Record<AdminClass['status'], 'mint' | 'neutral' | 'coral'> = {
+  scheduled: 'mint',
+  completed: 'neutral',
+  cancelled: 'coral',
+};
 
 const statusLabel: Record<AdminClass['status'], string> = {
   scheduled: 'Programada',
@@ -34,6 +43,7 @@ export default function ClassesPage() {
   const [roster, setRoster] = useState<ClassRoster[]>([]);
   const [rosterLoading, setRosterLoading] = useState(false);
   const modalRef = useRef<HTMLDialogElement>(null);
+  const { confirm, dialog: confirmDialog } = useConfirm();
 
   async function refresh() {
     setLoading(true);
@@ -51,7 +61,13 @@ export default function ClassesPage() {
   }, []);
 
   async function handleCancel(c: AdminClass) {
-    if (!confirm(`¿Cancelar "${c.title}"? Se reembolsará el crédito a quienes ya reservaron.`)) return;
+    const ok = await confirm({
+      title: 'Cancelar clase',
+      message: `¿Cancelar "${c.title}"? Se reembolsará el crédito a quienes ya reservaron.`,
+      confirmLabel: 'Sí, cancelar',
+      tone: 'danger',
+    });
+    if (!ok) return;
     setCancellingId(c.id);
     const { error } = await cancelClass(c.id);
     setCancellingId(null);
@@ -83,83 +99,90 @@ export default function ClassesPage() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h2 className="text-xl font-semibold text-gray-900">Próximas clases</h2>
-        <p className="mt-1 text-sm text-gray-500">
-          Clases generadas a partir del horario recurrente, agrupadas por fecha.
-        </p>
-      </div>
+      <PageHeader title="Próximas clases" description="Clases generadas a partir del horario recurrente, agrupadas por fecha." />
 
-      {error && <p className="rounded bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+      {error && <ErrorBanner>{error}</ErrorBanner>}
 
       {loading ? (
-        <p className="text-sm text-gray-500">Cargando...</p>
+        <p className="text-sm text-ink-soft">Cargando...</p>
       ) : classes.length === 0 ? (
-        <p className="text-sm text-gray-400">No hay clases programadas.</p>
+        <EmptyState>No hay clases programadas.</EmptyState>
       ) : (
         <div className="space-y-6">
           {[...groups.entries()].map(([day, dayClasses]) => (
             <div key={day}>
-              <h3 className="mb-2 text-sm font-semibold capitalize text-gray-700">{day}</h3>
-              <table className="w-full border-collapse overflow-hidden rounded-lg border bg-white text-sm text-gray-900">
-                <thead>
-                  <tr className="border-b bg-gray-50 text-left text-gray-500">
-                    <th className="px-3 py-2">Hora</th>
-                    <th className="px-3 py-2">Título</th>
-                    <th className="px-3 py-2">Instructor</th>
-                    <th className="px-3 py-2">Ocupación</th>
-                    <th className="px-3 py-2">Estado</th>
-                    <th className="px-3 py-2" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {dayClasses.map((c) => {
-                    const isCancelled = c.status === 'cancelled';
-                    return (
-                      <tr key={c.id} className="border-b last:border-0">
-                        <td className="px-3 py-2">
-                          {new Date(c.startsAt).toLocaleTimeString('es', { timeZone: STUDIO_TZ, hour: '2-digit', minute: '2-digit' })}
-                        </td>
-                        <td className="px-3 py-2">{c.title}</td>
-                        <td className="px-3 py-2">{c.instructorName}</td>
-                        <td className="px-3 py-2">
-                          <button onClick={() => openRoster(c)} className="text-blue-600 hover:underline">
-                            {c.bookedCount}/{c.capacity}
-                          </button>
-                        </td>
-                        <td className="px-3 py-2">
-                          <span className={isCancelled ? 'text-red-600' : 'text-green-700'}>
-                            {statusLabel[c.status]}
-                          </span>
-                        </td>
-                        <td className="px-3 py-2 text-right">
-                          {!isCancelled && (
-                            <button
-                              onClick={() => handleCancel(c)}
-                              disabled={cancellingId === c.id}
-                              className="text-gray-500 hover:text-red-600 disabled:opacity-50"
-                            >
-                              Cancelar
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-muted">{day}</h3>
+              <Card className="overflow-hidden">
+                <table className="w-full border-collapse text-sm">
+                  <thead>
+                    <tr className="border-b border-line bg-surface-alt text-left text-xs uppercase tracking-wide text-ink-muted">
+                      <th className="px-4 py-2.5 font-medium">Hora</th>
+                      <th className="px-4 py-2.5 font-medium">Título</th>
+                      <th className="px-4 py-2.5 font-medium">Instructor</th>
+                      <th className="px-4 py-2.5 font-medium">Ocupación</th>
+                      <th className="px-4 py-2.5 font-medium">Estado</th>
+                      <th className="px-4 py-2.5" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dayClasses.map((c) => {
+                      const isCancelled = c.status === 'cancelled';
+                      const isFull = c.bookedCount >= c.capacity;
+                      return (
+                        <tr
+                          key={c.id}
+                          onClick={() => openRoster(c)}
+                          className="cursor-pointer border-b border-line text-ink last:border-0 hover:bg-surface-alt/60"
+                        >
+                          <td className="px-4 py-3 tabular-nums text-ink-soft">
+                            {new Date(c.startsAt).toLocaleTimeString('es', { timeZone: STUDIO_TZ, hour: '2-digit', minute: '2-digit' })}
+                          </td>
+                          <td className="px-4 py-3 font-medium">{c.title}</td>
+                          <td className="px-4 py-3 text-ink-soft">{c.instructorName}</td>
+                          <td className="px-4 py-3">
+                            <Badge tone={isFull ? 'coral' : 'mint'}>
+                              {c.bookedCount}/{c.capacity}
+                            </Badge>
+                          </td>
+                          <td className="px-4 py-3">
+                            <Badge tone={statusTone[c.status]}>{statusLabel[c.status]}</Badge>
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <div className="flex items-center justify-end gap-3">
+                              {!isCancelled && (
+                                <Button
+                                  variant="dangerLink"
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleCancel(c);
+                                  }}
+                                  disabled={cancellingId === c.id}
+                                >
+                                  Cancelar
+                                </Button>
+                              )}
+                              <ChevronRightIcon className="h-4 w-4 text-ink-muted" />
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </Card>
             </div>
           ))}
         </div>
       )}
 
-      <dialog ref={modalRef} className="m-auto w-full max-w-md rounded-lg border p-0 backdrop:bg-black/40">
-        <div className="space-y-3 p-4">
+      <dialog ref={modalRef} className="m-auto w-full max-w-md rounded-2xl border border-line bg-surface p-0 text-ink">
+        <div className="space-y-3 p-5">
           <div className="flex items-start justify-between">
             <div>
-              <h3 className="text-sm font-semibold text-gray-900">{rosterClass?.title}</h3>
+              <h3 className="text-sm font-semibold text-ink">{rosterClass?.title}</h3>
               {rosterClass && (
-                <p className="text-xs text-gray-500">
+                <p className="text-xs text-ink-soft">
                   {new Date(rosterClass.startsAt).toLocaleString('es', {
                     timeZone: STUDIO_TZ,
                     weekday: 'long',
@@ -168,33 +191,44 @@ export default function ClassesPage() {
                     hour: '2-digit',
                     minute: '2-digit',
                   })}
+                  {' · '}
+                  {rosterClass.instructorName}
                 </p>
               )}
             </div>
-            <button onClick={() => modalRef.current?.close()} className="text-sm text-gray-400 hover:text-gray-700">
+            <button onClick={() => modalRef.current?.close()} className="text-sm text-ink-muted hover:text-ink">
               Cerrar
             </button>
           </div>
 
+          {rosterClass && (
+            <div className="flex gap-2">
+              <Badge tone={rosterClass.bookedCount >= rosterClass.capacity ? 'coral' : 'mint'}>
+                {rosterClass.bookedCount}/{rosterClass.capacity} inscritos
+              </Badge>
+              <Badge tone={statusTone[rosterClass.status]}>{statusLabel[rosterClass.status]}</Badge>
+            </div>
+          )}
+
           {rosterLoading ? (
-            <p className="text-sm text-gray-500">Cargando...</p>
+            <p className="text-sm text-ink-soft">Cargando...</p>
           ) : roster.length === 0 ? (
-            <p className="text-sm text-gray-400">Nadie se ha inscrito todavía.</p>
+            <p className="text-sm text-ink-muted">Nadie se ha inscrito todavía.</p>
           ) : (
-            <table className="w-full border-collapse text-sm text-gray-900">
+            <table className="w-full border-collapse text-sm">
               <thead>
-                <tr className="border-b text-left text-gray-500">
-                  <th className="py-1.5 pr-2">Nombre</th>
-                  <th className="py-1.5 pr-2">Bici</th>
-                  <th className="py-1.5">Estado</th>
+                <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-ink-muted">
+                  <th className="py-1.5 pr-2 font-medium">Nombre</th>
+                  <th className="py-1.5 pr-2 font-medium">Bici</th>
+                  <th className="py-1.5 font-medium">Estado</th>
                 </tr>
               </thead>
               <tbody>
                 {roster.map((r) => (
-                  <tr key={r.reservationId} className="border-b last:border-0">
-                    <td className="py-1.5 pr-2">{r.fullName}</td>
-                    <td className="py-1.5 pr-2">{r.bikeLabel}</td>
-                    <td className="py-1.5 text-gray-500">{rosterStatusLabel[r.status]}</td>
+                  <tr key={r.reservationId} className="border-b border-line last:border-0">
+                    <td className="py-1.5 pr-2 text-ink">{r.fullName}</td>
+                    <td className="py-1.5 pr-2 text-ink-soft">{r.bikeLabel}</td>
+                    <td className="py-1.5 text-ink-soft">{rosterStatusLabel[r.status]}</td>
                   </tr>
                 ))}
               </tbody>
@@ -202,6 +236,8 @@ export default function ClassesPage() {
           )}
         </div>
       </dialog>
+
+      {confirmDialog}
     </div>
   );
 }

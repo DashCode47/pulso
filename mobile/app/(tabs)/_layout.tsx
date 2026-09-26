@@ -1,12 +1,21 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../features/auth/store';
+import { colors } from '../../theme';
 
 export default function TabsLayout() {
   const isAdmin = useAuthStore((s) => s.isAdmin);
 
   return (
-    <Tabs screenOptions={{ headerShown: false, tabBarActiveTintColor: '#111' }}>
+    <Tabs
+      screenOptions={{
+        headerShown: false,
+        tabBarActiveTintColor: colors.ink,
+        tabBarInactiveTintColor: colors.inkMuted,
+        tabBarStyle: { backgroundColor: colors.bg, borderTopColor: colors.border },
+        tabBarLabelStyle: { fontSize: 10, fontWeight: '600', letterSpacing: 0.4 },
+      }}
+    >
       <Tabs.Screen
         name="home"
         options={{ title: 'Inicio', tabBarIcon: ({ color, size }) => <Ionicons name="home" color={color} size={size} /> }}

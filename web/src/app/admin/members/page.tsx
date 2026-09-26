@@ -13,12 +13,21 @@ import {
   setMembershipStatus,
   updateMembership,
 } from '@/lib/members';
+import { Badge, Button, EmptyState, ErrorBanner, Input, Label, PageHeader } from '@/components/ui';
+import { useConfirm } from '@/components/confirm-dialog';
 
 const membershipStatusLabel: Record<NonNullable<Member['membershipStatus']>, string> = {
   active: 'Activa',
   paused: 'Pausada',
   cancelled: 'Cancelada',
   expired: 'Vencida',
+};
+
+const membershipStatusTone: Record<NonNullable<Member['membershipStatus']>, 'mint' | 'coral' | 'neutral'> = {
+  active: 'mint',
+  expired: 'coral',
+  paused: 'neutral',
+  cancelled: 'neutral',
 };
 
 function formatDate(isoDate: string) {
@@ -45,6 +54,7 @@ export default function MembersPage() {
 
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
   const [renewing, setRenewing] = useState(false);
+  const { confirm, dialog: confirmDialog } = useConfirm();
 
   async function refresh(q: string) {
     setLoading(true);
@@ -147,7 +157,12 @@ export default function MembersPage() {
 
   async function handleRenewSelected() {
     if (checkedIds.size === 0) return;
-    if (!confirm(`¿Renovar créditos para ${checkedIds.size} miembro(s)?`)) return;
+    const ok = await confirm({
+      title: 'Renovar créditos',
+      message: `¿Renovar créditos para ${checkedIds.size} miembro(s)?`,
+      confirmLabel: 'Sí, renovar',
+    });
+    if (!ok) return;
     setRenewing(true);
     const { error } = await grantCreditsBulk([...checkedIds]);
     setRenewing(false);
@@ -161,162 +176,146 @@ export default function MembersPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-xl font-semibold text-gray-900">Miembros</h2>
-        <p className="mt-1 text-sm text-gray-500">Busca un miembro para asignar o editar su membresía y créditos.</p>
-      </div>
+      <PageHeader title="Miembros" description="Busca un miembro para asignar o editar su membresía y créditos." />
 
-      <input
+      <Input
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         placeholder="Buscar por nombre..."
-        className="w-full max-w-sm rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
+        className="max-w-sm"
       />
 
-      {error && <p className="rounded bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+      {error && <ErrorBanner>{error}</ErrorBanner>}
 
       {checkedIds.size > 0 && (
-        <div className="flex items-center gap-3 rounded border border-blue-200 bg-blue-50 px-3 py-2 text-sm">
-          <span className="text-blue-900">{checkedIds.size} seleccionado(s)</span>
-          <button
-            onClick={handleRenewSelected}
-            disabled={renewing}
-            className="rounded bg-gray-900 px-3 py-1 text-xs font-medium text-white disabled:opacity-50"
-          >
+        <div className="flex items-center gap-3 rounded-lg bg-mint-soft px-4 py-2.5 text-sm">
+          <span className="text-ink">{checkedIds.size} seleccionado(s)</span>
+          <Button size="sm" onClick={handleRenewSelected} disabled={renewing}>
             {renewing ? 'Renovando...' : 'Renovar créditos'}
-          </button>
+          </Button>
         </div>
       )}
 
       {loading ? (
-        <p className="text-sm text-gray-500">Cargando...</p>
+        <p className="text-sm text-ink-soft">Cargando...</p>
       ) : members.length === 0 ? (
-        <p className="text-sm text-gray-400">Sin resultados.</p>
+        <EmptyState>Sin resultados.</EmptyState>
       ) : (
-        <table className="w-full border-collapse overflow-hidden rounded-lg border bg-white text-sm text-gray-900">
-          <thead>
-            <tr className="border-b bg-gray-50 text-left text-gray-500">
-              <th className="w-8 px-3 py-2">
-                <input
-                  type="checkbox"
-                  checked={renewableMembers.length > 0 && checkedIds.size === renewableMembers.length}
-                  onChange={toggleAllChecked}
-                />
-              </th>
-              <th className="px-3 py-2">Nombre</th>
-              <th className="px-3 py-2">Créditos</th>
-              <th className="px-3 py-2">Membresía</th>
-              <th className="px-3 py-2">Desde</th>
-              <th className="px-3 py-2">Vence</th>
-              <th className="px-3 py-2" />
-            </tr>
-          </thead>
-          <tbody>
-            {members.map((m) => (
-              <tr key={m.userId} className="border-b last:border-0">
-                <td className="px-3 py-2">
+        <div className="overflow-hidden rounded-2xl border border-line bg-surface">
+          <table className="w-full border-collapse text-sm">
+            <thead>
+              <tr className="border-b border-line bg-surface-alt text-left text-xs uppercase tracking-wide text-ink-muted">
+                <th className="w-10 px-4 py-2.5">
                   <input
                     type="checkbox"
-                    disabled={m.membershipStatus !== 'active' && m.membershipStatus !== 'expired'}
-                    checked={checkedIds.has(m.userId)}
-                    onChange={() => toggleChecked(m.userId)}
+                    className="accent-mint"
+                    checked={renewableMembers.length > 0 && checkedIds.size === renewableMembers.length}
+                    onChange={toggleAllChecked}
                   />
-                </td>
-                <td className="px-3 py-2">{m.fullName}</td>
-                <td className="px-3 py-2">{m.creditsBalance}</td>
-                <td className="px-3 py-2">
-                  <span
-                    className={
-                      m.membershipStatus === 'active'
-                        ? 'text-green-700'
-                        : m.membershipStatus === 'expired'
-                          ? 'text-red-600'
-                          : 'text-gray-400'
-                    }
-                  >
-                    {m.membershipStatus ? membershipStatusLabel[m.membershipStatus] : 'Sin membresía'}
-                  </span>
-                </td>
-                <td className="px-3 py-2 text-gray-500">{m.cycleStart ? formatDate(m.cycleStart) : '—'}</td>
-                <td className="px-3 py-2 text-gray-500">{m.cycleEnd ? formatDate(m.cycleEnd) : '—'}</td>
-                <td className="px-3 py-2 text-right">
-                  <button onClick={() => openMember(m)} className="text-blue-600 hover:underline">
-                    Gestionar
-                  </button>
-                </td>
+                </th>
+                <th className="px-4 py-2.5 font-medium">Nombre</th>
+                <th className="px-4 py-2.5 font-medium">Créditos</th>
+                <th className="px-4 py-2.5 font-medium">Membresía</th>
+                <th className="px-4 py-2.5 font-medium">Desde</th>
+                <th className="px-4 py-2.5 font-medium">Vence</th>
+                <th className="px-4 py-2.5" />
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {members.map((m) => (
+                <tr key={m.userId} className="border-b border-line text-ink last:border-0 hover:bg-surface-alt/60">
+                  <td className="px-4 py-3">
+                    <input
+                      type="checkbox"
+                      className="accent-mint"
+                      disabled={m.membershipStatus !== 'active' && m.membershipStatus !== 'expired'}
+                      checked={checkedIds.has(m.userId)}
+                      onChange={() => toggleChecked(m.userId)}
+                    />
+                  </td>
+                  <td className="px-4 py-3 font-medium">{m.fullName}</td>
+                  <td className="px-4 py-3 tabular-nums text-ink-soft">{m.creditsBalance}</td>
+                  <td className="px-4 py-3">
+                    {m.membershipStatus ? (
+                      <Badge tone={membershipStatusTone[m.membershipStatus]}>{membershipStatusLabel[m.membershipStatus]}</Badge>
+                    ) : (
+                      <span className="text-ink-muted">Sin membresía</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-ink-soft">{m.cycleStart ? formatDate(m.cycleStart) : '—'}</td>
+                  <td className="px-4 py-3 text-ink-soft">{m.cycleEnd ? formatDate(m.cycleEnd) : '—'}</td>
+                  <td className="px-4 py-3 text-right">
+                    <Button variant="link" size="sm" onClick={() => openMember(m)}>
+                      Gestionar
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
 
-      <dialog ref={modalRef} className="m-auto w-full max-w-md rounded-lg border p-0 backdrop:bg-black/40">
-        <div className="space-y-5 p-4">
+      <dialog ref={modalRef} className="m-auto w-full max-w-md rounded-2xl border border-line bg-surface p-0 text-ink">
+        <div className="space-y-5 p-5">
           <div className="flex items-start justify-between">
-            <h3 className="text-sm font-semibold text-gray-900">{selected?.fullName}</h3>
-            <button onClick={() => modalRef.current?.close()} className="text-sm text-gray-400 hover:text-gray-700">
+            <h3 className="text-sm font-semibold text-ink">{selected?.fullName}</h3>
+            <button onClick={() => modalRef.current?.close()} className="text-sm text-ink-muted hover:text-ink">
               Cerrar
             </button>
           </div>
 
           {detailLoading ? (
-            <p className="text-sm text-gray-500">Cargando...</p>
+            <p className="text-sm text-ink-soft">Cargando...</p>
           ) : (
             <>
               <form onSubmit={handleSaveMembership} className="space-y-3">
-                <p className="text-xs font-medium uppercase text-gray-400">
+                <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
                   {editableMembership ? 'Editar membresía' : 'Asignar membresía'}
                 </p>
                 {membership && (
-                  <p className="text-xs text-gray-400">
+                  <p className="text-xs text-ink-muted">
                     {membershipStatusLabel[membership.status]} · vence {formatDate(membership.cycleEnd)}
                   </p>
                 )}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Plan</label>
-                  <input
-                    required
-                    value={form.planName}
-                    onChange={(e) => setForm({ ...form, planName: e.target.value })}
-                    className="mt-1 w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900"
-                  />
+                  <Label htmlFor="plan">Plan</Label>
+                  <Input id="plan" required value={form.planName} onChange={(e) => setForm({ ...form, planName: e.target.value })} />
                 </div>
                 <div className="flex gap-3">
                   <div className="flex-1">
-                    <label className="block text-sm font-medium text-gray-700">Créditos/ciclo</label>
-                    <input
+                    <Label htmlFor="creditsPerCycle">Créditos/ciclo</Label>
+                    <Input
+                      id="creditsPerCycle"
                       type="number"
                       required
                       min={0}
                       value={form.creditsPerCycle}
                       onChange={(e) => setForm({ ...form, creditsPerCycle: Number(e.target.value) })}
-                      className="mt-1 w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900"
                     />
                   </div>
                   <div className="flex-1">
-                    <label className="block text-sm font-medium text-gray-700">Meta semanal</label>
-                    <input
+                    <Label htmlFor="weeklyGoal">Meta semanal</Label>
+                    <Input
+                      id="weeklyGoal"
                       type="number"
                       required
                       min={0}
                       value={form.weeklyGoal}
                       onChange={(e) => setForm({ ...form, weeklyGoal: Number(e.target.value) })}
-                      className="mt-1 w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900"
                     />
                   </div>
                 </div>
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between pt-1">
                   <div className="flex gap-2">
-                    <button
-                      type="submit"
-                      disabled={saving}
-                      className="rounded bg-gray-900 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
-                    >
+                    <Button type="submit" size="sm" disabled={saving}>
                       {editableMembership ? 'Guardar cambios' : 'Asignar membresía'}
-                    </button>
+                    </Button>
                     {(membership?.status === 'active' || membership?.status === 'expired') && (
-                      <button
+                      <Button
                         type="button"
+                        variant="ghost"
+                        size="sm"
                         disabled={renewing}
                         onClick={async () => {
                           setRenewing(true);
@@ -329,25 +328,24 @@ export default function MembersPage() {
                           setSelected({ ...selected!, creditsBalance: selected!.creditsBalance + form.creditsPerCycle });
                           refresh(query);
                         }}
-                        className="rounded border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 disabled:opacity-50"
                       >
                         Renovar créditos
-                      </button>
+                      </Button>
                     )}
                   </div>
                   {editableMembership && (
                     <div className="flex gap-3 text-xs">
                       {editableMembership.status !== 'active' && (
-                        <button type="button" onClick={() => handleSetStatus('active')} className="text-green-700 hover:underline">
+                        <button type="button" onClick={() => handleSetStatus('active')} className="font-medium text-mint hover:underline">
                           Reactivar
                         </button>
                       )}
                       {editableMembership.status === 'active' && (
-                        <button type="button" onClick={() => handleSetStatus('paused')} className="text-gray-500 hover:underline">
+                        <button type="button" onClick={() => handleSetStatus('paused')} className="text-ink-soft hover:text-ink">
                           Pausar
                         </button>
                       )}
-                      <button type="button" onClick={() => handleSetStatus('cancelled')} className="text-red-600 hover:underline">
+                      <button type="button" onClick={() => handleSetStatus('cancelled')} className="text-coral hover:underline">
                         Cancelar
                       </button>
                     </div>
@@ -355,37 +353,35 @@ export default function MembersPage() {
                 </div>
               </form>
 
-              <form onSubmit={handleAdjustCredits} className="space-y-3 border-t pt-4">
-                <p className="text-xs font-medium uppercase text-gray-400">
+              <form onSubmit={handleAdjustCredits} className="space-y-3 border-t border-line pt-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
                   Ajustar créditos (saldo actual: {selected?.creditsBalance})
                 </p>
                 <div className="flex gap-2">
-                  <input
+                  <Input
                     type="number"
                     placeholder="+5 / -2"
                     value={creditAmount}
                     onChange={(e) => setCreditAmount(e.target.value)}
-                    className="w-24 rounded border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900"
+                    className="w-24"
                   />
-                  <input
+                  <Input
                     placeholder="Nota (opcional)"
                     value={creditNote}
                     onChange={(e) => setCreditNote(e.target.value)}
-                    className="flex-1 rounded border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900"
+                    className="flex-1"
                   />
-                  <button
-                    type="submit"
-                    disabled={adjustingCredits || !creditAmount}
-                    className="rounded bg-gray-900 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
-                  >
+                  <Button type="submit" size="sm" disabled={adjustingCredits || !creditAmount}>
                     Aplicar
-                  </button>
+                  </Button>
                 </div>
               </form>
             </>
           )}
         </div>
       </dialog>
+
+      {confirmDialog}
     </div>
   );
 }

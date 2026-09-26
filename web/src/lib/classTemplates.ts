@@ -47,41 +47,20 @@ export type ClassTemplateInput = {
   capacity: number;
 };
 
-export async function createClassTemplate(input: ClassTemplateInput) {
+// admin_save_class_template() is the only write path: it also rebuilds the
+// template's future classes that nobody booked. `kept` = booked classes left
+// as they were that no longer match the template (admin should review them).
+export async function saveClassTemplate(templateId: string | null, input: ClassTemplateInput, active = true) {
   const supabase = createClient();
-  const { error } = await supabase.from('class_templates').insert({
-    title: input.title,
-    instructor_id: input.instructorId,
-    day_of_week: input.dayOfWeek,
-    start_time: input.startTime,
-    duration_minutes: input.durationMinutes,
-    capacity: input.capacity,
+  const { data, error } = await supabase.rpc('admin_save_class_template', {
+    p_template_id: templateId,
+    p_title: input.title,
+    p_instructor_id: input.instructorId,
+    p_day_of_week: input.dayOfWeek,
+    p_start_time: input.startTime,
+    p_duration_minutes: input.durationMinutes,
+    p_capacity: input.capacity,
+    p_active: active,
   });
-  return { error };
-}
-
-// Editing a template only affects classes generated *after* the edit -- it
-// never rewrites already-generated rows.
-export async function updateClassTemplate(templateId: string, input: ClassTemplateInput) {
-  const supabase = createClient();
-  const { error } = await supabase
-    .from('class_templates')
-    .update({
-      title: input.title,
-      instructor_id: input.instructorId,
-      day_of_week: input.dayOfWeek,
-      start_time: input.startTime,
-      duration_minutes: input.durationMinutes,
-      capacity: input.capacity,
-    })
-    .eq('id', templateId);
-  return { error };
-}
-
-// Soft delete: stops future generation but keeps already-generated classes
-// (and their reservations) intact.
-export async function setClassTemplateActive(templateId: string, active: boolean) {
-  const supabase = createClient();
-  const { error } = await supabase.from('class_templates').update({ active }).eq('id', templateId);
-  return { error };
+  return { kept: (data as number | null) ?? 0, error };
 }

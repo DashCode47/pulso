@@ -1,11 +1,14 @@
-import { View, Text, Pressable, ScrollView, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '../../features/auth/store';
 import { mockHomeSummary } from '../../features/home/mockData';
+import { useNews } from '../../features/home/useNews';
 import * as backend from '../../services/backend';
 import { ProgressBar } from '../../components/ProgressBar';
+import { NewsCarousel } from '../../components/NewsCarousel';
+import { PulseLine } from '../../components/PulseLine';
 import { Screen } from '../../components/Screen';
 import { colors, radius, spacing, type } from '../../theme';
 
@@ -20,22 +23,28 @@ function AdminHome() {
 
   return (
     <Screen>
-      <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.greeting}>Panel del estudio</Text>
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <View>
+          <Text style={styles.eyebrow}>{todayLabel()}</Text>
+          <Text style={styles.greeting}>Panel del estudio</Text>
+        </View>
 
         <View style={styles.quickActions}>
-          <Pressable style={styles.quickAction} onPress={() => router.push('/(tabs)/admin')}>
+          <Pressable style={({ pressed }) => [styles.quickAction, pressed && styles.pressed]} onPress={() => router.push('/(tabs)/admin')}>
             <Ionicons name="add-circle" size={20} color={colors.onAccent} />
             <Text style={styles.quickActionText}>Crear clase</Text>
           </Pressable>
-          <Pressable style={[styles.quickAction, styles.quickActionDark]} onPress={() => router.push('/(tabs)/members')}>
-            <Ionicons name="people" size={20} color={colors.onDark} />
-            <Text style={[styles.quickActionText, { color: colors.onDark }]}>Ver miembros</Text>
+          <Pressable
+            style={({ pressed }) => [styles.quickAction, styles.quickActionSecondary, pressed && styles.pressed]}
+            onPress={() => router.push('/(tabs)/members')}
+          >
+            <Ionicons name="people" size={20} color={colors.ink} />
+            <Text style={[styles.quickActionText, { color: colors.ink }]}>Ver miembros</Text>
           </Pressable>
         </View>
 
         {isLoading || !data ? (
-          <ActivityIndicator color={colors.accent} style={{ marginTop: spacing.xl }} />
+          <PulseLine style={{ alignSelf: 'center', marginTop: spacing.xl }} />
         ) : (
           <>
             <View style={styles.statsRow}>
@@ -93,30 +102,54 @@ function MemberHome() {
   const user = useAuthStore((s) => s.user);
   const router = useRouter();
   const summary = mockHomeSummary;
+  const { data: news, isLoading: loadingNews } = useNews();
   const firstName = (user?.name ?? user?.email ?? '').split(' ')[0].split('@')[0];
+  const classesLeft = summary.weeklyGoal - summary.weeklyCompleted;
 
   return (
     <Screen>
-      <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.greeting}>Hola, {firstName} 👋</Text>
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <View style={styles.header}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.eyebrow}>{todayLabel()}</Text>
+            <Text style={styles.greeting}>Hola, {firstName}</Text>
+          </View>
+          <Pressable style={styles.avatar} onPress={() => router.push('/(tabs)/profile')} accessibilityLabel="Perfil">
+            <Text style={styles.avatarText}>{firstName.charAt(0).toUpperCase()}</Text>
+          </Pressable>
+        </View>
+
+        {/* Mismo alto que el banner mientras carga, para que no salte el layout.
+            Si falla o no hay noticias, el carrusel simplemente no aparece. */}
+        {loadingNews ? (
+          <View style={styles.newsSkeleton}>
+            <PulseLine bg={colors.surface} />
+          </View>
+        ) : (
+          !!news?.length && <NewsCarousel items={news} />
+        )}
 
         {summary.nextClass ? (
           <View style={styles.nextClassCard}>
-            <Text style={styles.nextClassLabel}>Próxima clase</Text>
+            <View style={styles.nextClassTop}>
+              <Text style={styles.nextClassLabel}>Tu próxima clase</Text>
+              {/* Solo late si la clase es hoy: el movimiento avisa que está cerca. */}
+              {summary.nextClass.dayLabel === 'Hoy' && <PulseLine width={56} height={20} color={colors.onAccent} bg={colors.accent} />}
+            </View>
             <Text style={styles.nextClassTitle}>{summary.nextClass.title}</Text>
             <Text style={styles.nextClassMeta}>
               {summary.nextClass.dayLabel} · {summary.nextClass.startsAt} · {summary.nextClass.bikeLabel}
             </Text>
-            <Pressable style={styles.viewButton} onPress={() => router.push('/(tabs)/bookings')}>
+            <Pressable style={({ pressed }) => [styles.viewButton, pressed && styles.pressed]} onPress={() => router.push('/(tabs)/bookings')}>
               <Text style={styles.viewButtonText}>Ver reserva</Text>
-              <Ionicons name="arrow-forward" size={16} color={colors.onAccent} />
+              <Ionicons name="arrow-forward" size={16} color={colors.accent} />
             </Pressable>
           </View>
         ) : (
           <View style={styles.emptyClassCard}>
-            <Ionicons name="calendar-outline" size={28} color={colors.onDarkSoft} />
+            <Ionicons name="calendar-outline" size={28} color={colors.inkSoft} />
             <Text style={styles.emptyClassText}>No tienes clases reservadas.</Text>
-            <Pressable style={styles.bookButton} onPress={() => router.push('/(tabs)/bookings')}>
+            <Pressable style={({ pressed }) => [styles.bookButton, pressed && styles.pressed]} onPress={() => router.push('/(tabs)/bookings')}>
               <Text style={styles.bookButtonText}>Reservar una clase</Text>
             </Pressable>
           </View>
@@ -124,15 +157,17 @@ function MemberHome() {
 
         <View style={styles.statsRow}>
           <View style={styles.statChip}>
-            <Text style={styles.statEmoji}>🔥</Text>
+            <Ionicons name="flame" size={16} color={colors.ink} />
             <Text style={styles.statValue}>{summary.currentStreakWeeks}</Text>
             <Text style={styles.statLabel}>semanas</Text>
           </View>
           <View style={styles.statChip}>
+            <Ionicons name="flash" size={16} color={colors.ink} />
             <Text style={styles.statValue}>{summary.weeklyXp}</Text>
             <Text style={styles.statLabel}>XP semana</Text>
           </View>
           <View style={styles.statChip}>
+            <Ionicons name="podium" size={16} color={colors.ink} />
             <Text style={styles.statValue}>#{summary.leaderboardPosition}</Text>
             <Text style={styles.statLabel}>ranking</Text>
           </View>
@@ -147,9 +182,9 @@ function MemberHome() {
           </View>
           <ProgressBar progress={summary.weeklyCompleted / summary.weeklyGoal} />
           <Text style={styles.weeklyHint}>
-            {summary.weeklyGoal - summary.weeklyCompleted > 0
-              ? `${summary.weeklyGoal - summary.weeklyCompleted} clases más para cumplir tu meta`
-              : '¡Meta semanal completada!'}
+            {classesLeft <= 0
+              ? '¡Meta semanal completada!'
+              : `${classesLeft === 1 ? 'Una clase más' : `${classesLeft} clases más`} para cumplir tu meta`}
           </Text>
         </View>
       </ScrollView>
@@ -157,86 +192,100 @@ function MemberHome() {
   );
 }
 
+// "sábado, 26 de septiembre" -> el estilo eyebrow lo pasa a mayúsculas.
+function todayLabel() {
+  return new Date().toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long' });
+}
+
+const card = {
+  backgroundColor: colors.surface,
+  borderRadius: radius.lg,
+  borderWidth: StyleSheet.hairlineWidth,
+  borderColor: colors.border,
+} as const;
+
 const styles = StyleSheet.create({
-  content: { padding: spacing.xxl, gap: spacing.xl },
+  content: { padding: spacing.xxl, paddingBottom: spacing.xxl * 2, gap: spacing.xxl },
+  header: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  eyebrow: { ...type.eyebrow, color: colors.inkMuted, marginBottom: spacing.xs },
   greeting: { ...type.title, color: colors.ink },
+  avatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  avatarText: { fontSize: 17, fontWeight: '700', color: colors.ink },
+  pressed: { transform: [{ scale: 0.98 }], opacity: 0.9 },
+  newsSkeleton: { ...card, height: 210, alignItems: 'center', justifyContent: 'center' },
 
   quickActions: { flexDirection: 'row', gap: spacing.sm },
   quickAction: {
     flex: 1,
     flexDirection: 'row',
     backgroundColor: colors.accent,
-    borderRadius: radius.md,
-    padding: spacing.lg,
+    borderRadius: radius.pill,
+    paddingVertical: spacing.lg,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: spacing.xs,
-  },
-  quickActionDark: { backgroundColor: colors.ink },
-  quickActionText: { color: colors.onAccent, fontWeight: '700' },
-
-  sectionTitle: { ...type.h2, color: colors.ink, marginBottom: spacing.sm },
-  emptyTodayCard: { backgroundColor: colors.surface, borderRadius: radius.md, padding: spacing.xl, alignItems: 'center' },
-  emptyClassTextDark: { color: colors.inkSoft, fontSize: 14 },
-
-  todayRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    padding: spacing.lg,
     gap: spacing.sm,
   },
-  todayTitle: { fontSize: 15, fontWeight: '700', color: colors.ink },
+  quickActionSecondary: { backgroundColor: colors.surface, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
+  quickActionText: { color: colors.onAccent, fontWeight: '700' },
+
+  sectionTitle: { ...type.eyebrow, color: colors.inkMuted, marginBottom: spacing.md },
+  emptyTodayCard: { ...card, padding: spacing.xl, alignItems: 'center' },
+  emptyClassTextDark: { color: colors.inkSoft, fontSize: 14 },
+
+  todayRow: { ...card, borderRadius: radius.md, flexDirection: 'row', alignItems: 'center', padding: spacing.lg, gap: spacing.sm },
+  todayTitle: { fontSize: 16, fontWeight: '700', color: colors.ink },
   todayMeta: { ...type.caption, color: colors.inkSoft, marginTop: 2 },
-  occupancyBadge: { backgroundColor: '#e6f4ea', borderRadius: radius.pill, paddingVertical: 4, paddingHorizontal: spacing.sm },
-  occupancyBadgeFull: { backgroundColor: '#fdeceb' },
+  occupancyBadge: { backgroundColor: colors.successSoft, borderRadius: radius.pill, paddingVertical: 4, paddingHorizontal: spacing.md },
+  occupancyBadgeFull: { backgroundColor: colors.dangerSoft },
   occupancyText: { color: colors.success, fontWeight: '700', fontSize: 12 },
   occupancyTextFull: { color: colors.danger },
 
-  nextClassCard: { backgroundColor: colors.accent, borderRadius: radius.lg, padding: spacing.xl, gap: 4 },
-  nextClassLabel: { color: colors.onAccent, opacity: 0.85, fontSize: 13, fontWeight: '700', textTransform: 'uppercase' },
-  nextClassTitle: { color: colors.onAccent, fontSize: 24, fontWeight: '800', marginTop: 2 },
-  nextClassMeta: { color: colors.onAccent, opacity: 0.9, fontSize: 14 },
+  // Tarjeta invertida (marfil sobre negro): el único bloque claro del Home.
+  nextClassCard: { backgroundColor: colors.accent, borderRadius: radius.xl, padding: spacing.xxl, gap: spacing.xs },
+  nextClassTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', minHeight: 20 },
+  nextClassLabel: { ...type.eyebrow, color: colors.onAccent, opacity: 0.55 },
+  nextClassTitle: { ...type.display, color: colors.onAccent, marginTop: spacing.xs },
+  nextClassMeta: { color: colors.onAccent, opacity: 0.7, fontSize: 15, fontWeight: '500' },
   viewButton: {
     flexDirection: 'row',
-    backgroundColor: 'rgba(0,0,0,0.15)',
-    borderRadius: radius.sm,
-    padding: spacing.md,
+    backgroundColor: colors.onAccent,
+    borderRadius: radius.pill,
+    paddingVertical: spacing.md + 2,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: spacing.xs,
-    marginTop: spacing.md,
-  },
-  viewButtonText: { color: colors.onAccent, fontWeight: '700' },
-
-  emptyClassCard: {
-    backgroundColor: colors.ink,
-    borderRadius: radius.lg,
-    padding: spacing.xxl,
-    alignItems: 'center',
     gap: spacing.sm,
+    marginTop: spacing.lg,
   },
-  emptyClassText: { color: colors.onDarkSoft, fontSize: 14 },
-  bookButton: { backgroundColor: colors.accent, borderRadius: radius.sm, paddingVertical: spacing.md, paddingHorizontal: spacing.xl, marginTop: spacing.xs },
+  viewButtonText: { color: colors.accent, fontWeight: '700' },
+
+  emptyClassCard: { ...card, borderRadius: radius.xl, padding: spacing.xxl, alignItems: 'center', gap: spacing.sm },
+  emptyClassText: { color: colors.inkSoft, fontSize: 14 },
+  bookButton: {
+    backgroundColor: colors.accent,
+    borderRadius: radius.pill,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.xxl,
+    marginTop: spacing.sm,
+  },
   bookButtonText: { color: colors.onAccent, fontWeight: '700' },
 
   statsRow: { flexDirection: 'row', gap: spacing.sm },
-  statChip: {
-    flex: 1,
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    paddingVertical: spacing.md,
-    alignItems: 'center',
-    gap: 2,
-  },
-  statEmoji: { fontSize: 16 },
-  statValue: { fontSize: 17, fontWeight: '800', color: colors.ink },
-  statLabel: { ...type.caption, color: colors.inkSoft },
+  statChip: { ...card, flex: 1, borderRadius: radius.md, paddingVertical: spacing.lg, alignItems: 'center', gap: spacing.xs },
+  statValue: { fontSize: 20, fontWeight: '800', letterSpacing: -0.4, color: colors.ink },
+  statLabel: { ...type.caption, color: colors.inkMuted },
 
-  weeklyCard: { backgroundColor: colors.surface, borderRadius: radius.md, padding: spacing.lg, gap: spacing.sm },
+  weeklyCard: { ...card, padding: spacing.xl, gap: spacing.md },
   weeklyHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   weeklyTitle: { ...type.h2, color: colors.ink },
-  weeklyCount: { ...type.h2, color: colors.accent },
+  weeklyCount: { ...type.h2, color: colors.ink },
   weeklyHint: { ...type.caption, color: colors.inkSoft },
 });

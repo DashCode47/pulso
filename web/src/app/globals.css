@@ -1,26 +1,45 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/*
+ * Brand palette lifted from the Pulso mark: pure black + ivory wordmark,
+ * mint pulse-line accent. Same tokens as mobile/theme/index.ts so the two
+ * surfaces read as one product. This is a deliberate single dark identity,
+ * not a light/dark toggle -- no prefers-color-scheme branch.
+ */
+@theme {
+  --color-canvas: #000000;
+  --color-surface: #111111;
+  --color-surface-alt: #1a1a1a;
+  --color-line: #262626;
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-ink: #f5f3ee;
+  --color-ink-soft: #a1a09c;
+  --color-ink-muted: #6b6a67;
+
+  --color-accent: #f5f3ee;
+  --color-on-accent: #000000;
+
+  --color-mint: #7fd1a0;
+  --color-mint-soft: rgba(127, 209, 160, 0.12);
+  --color-coral: #ff7a70;
+  --color-coral-soft: rgba(255, 122, 112, 0.12);
+  --color-locked: #4a4a48;
+
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+body {
+  background: var(--color-canvas);
+  color: var(--color-ink);
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+::selection {
+  background: var(--color-mint-soft);
+  color: var(--color-ink);
+}
+
+/* Native <dialog> backdrop, shared by every modal in the admin panel. */
+dialog::backdrop {
+  background: rgba(0, 0, 0, 0.6);
 }

@@ -5,23 +5,27 @@ export type { ClassWithBikes, Bike } from '../../services/backend';
 export { groupClassesByDay } from './groupByDay';
 
 export function useUpcomingClasses() {
-  return useQuery({ queryKey: ['classes', 'upcoming'], queryFn: backend.listUpcomingClasses });
+  // ponytail: polling instead of realtime -- keeps bike availability roughly
+  // fresh; switch to a Supabase realtime channel if collisions stay common.
+  return useQuery({ queryKey: ['classes', 'upcoming'], queryFn: backend.listUpcomingClasses, refetchInterval: 30_000 });
 }
 
 export function useBookingActions() {
   const queryClient = useQueryClient();
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['classes', 'upcoming'] });
+
+  // Refetch after errors too: a failed booking usually means our view of the
+  // class is stale (someone else took the bike / the spot).
+  async function run(action: Promise<{ error: { message: string } | null }>) {
+    const { error } = await action;
+    if (error) console.warn('[bookings]', error.message);
+    await queryClient.invalidateQueries({ queryKey: ['classes', 'upcoming'] });
+    return { error };
+  }
 
   return {
-    async book(classId: string, bikeId: string) {
-      const { error } = await backend.bookClass(classId, bikeId);
-      if (!error) await invalidate();
-      return { error };
-    },
-    async cancel(classId: string) {
-      const { error } = await backend.cancelReservationForClass(classId);
-      if (!error) await invalidate();
-      return { error };
-    },
+    book: (classId: string, bikeId: string) => run(backend.bookClass(classId, bikeId)),
+    cancel: (reservationId: string) => run(backend.cancelReservation(reservationId)),
+    joinWaitlist: (classId: string) => run(backend.joinWaitlist(classId)),
+    leaveWaitlist: (entryId: string) => run(backend.leaveWaitlist(entryId)),
   };
 }

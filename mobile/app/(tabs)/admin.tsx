@@ -1,10 +1,12 @@
 import { useState } from 'react';
-import { View, Text, TextInput, Pressable, ScrollView, ActivityIndicator, Alert, Platform, StyleSheet } from 'react-native';
+import { View, Text, TextInput, Pressable, ScrollView, ActivityIndicator, Platform, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as backend from '../../services/backend';
 import { Screen } from '../../components/Screen';
+import { showAlert } from '../../components/Dialog';
+import { PulseLine } from '../../components/PulseLine';
 import { colors, radius, spacing, type } from '../../theme';
 
 const statusLabel: Record<backend.AdminClass['status'], string> = {
@@ -92,7 +94,7 @@ export default function Admin() {
   }
 
   function confirmCancel(c: backend.AdminClass) {
-    Alert.alert('Cancelar clase', `¿Cancelar "${c.title}"? Se reembolsará el crédito a quienes ya reservaron.`, [
+    showAlert('Cancelar clase', `¿Cancelar "${c.title}"? Se reembolsará el crédito a quienes ya reservaron.`, [
       { text: 'No', style: 'cancel' },
       {
         text: 'Sí, cancelar',
@@ -102,7 +104,7 @@ export default function Admin() {
           const { error } = await backend.cancelClass(c.id);
           setCancellingId(null);
           if (error) {
-            Alert.alert('Error', 'No se pudo cancelar la clase.');
+            showAlert('Error', 'No se pudo cancelar la clase.');
             return;
           }
           if (editingId === c.id) resetForm();
@@ -156,7 +158,7 @@ export default function Admin() {
             />
             <Pressable style={styles.addInstructorButton} disabled={addingInstructor} onPress={handleAddInstructor}>
               {addingInstructor ? (
-                <ActivityIndicator size="small" color={colors.onAccent} />
+                <ActivityIndicator size="small" color={colors.ink} />
               ) : (
                 <Text style={styles.addInstructorButtonText}>Agregar</Text>
               )}
@@ -181,6 +183,9 @@ export default function Admin() {
               value={startsAt}
               mode={showPicker}
               is24Hour
+              // iOS lo dibuja inline: sin esto, con el teléfono en modo claro el texto sale negro sobre negro.
+              themeVariant="dark"
+              accentColor={colors.ink}
               onChange={(_event, selected) => {
                 setShowPicker(Platform.OS === 'ios' ? showPicker : null);
                 if (!selected) return;
@@ -225,7 +230,7 @@ export default function Admin() {
 
         <Text style={styles.sectionTitle}>Próximas clases</Text>
         {isLoading ? (
-          <ActivityIndicator color={colors.accent} />
+          <PulseLine style={{ alignSelf: 'center' }} />
         ) : (
           <View style={styles.list}>
             {(classes ?? []).map((c) => {
@@ -269,9 +274,16 @@ const styles = StyleSheet.create({
   title: { ...type.title, color: colors.ink },
   sectionTitle: { ...type.h2, color: colors.ink },
 
-  formCard: { backgroundColor: colors.surface, borderRadius: radius.md, padding: spacing.lg, gap: spacing.md },
+  formCard: {
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    borderRadius: radius.lg,
+    padding: spacing.xl,
+    gap: spacing.md,
+  },
   formHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  cancelEditText: { color: colors.accent, fontWeight: '600', fontSize: 13 },
+  cancelEditText: { color: colors.inkSoft, fontWeight: '600', fontSize: 13 },
   fieldLabel: { ...type.label, color: colors.inkSoft },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   chip: {
@@ -285,13 +297,15 @@ const styles = StyleSheet.create({
   chipText: { fontSize: 13, fontWeight: '600', color: colors.ink },
   chipTextSelected: { color: colors.onAccent },
   addInstructorButton: {
-    backgroundColor: colors.ink,
+    backgroundColor: colors.surfaceAlt,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
     borderRadius: radius.sm,
     paddingHorizontal: spacing.md,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  addInstructorButtonText: { color: colors.onDark, fontWeight: '600', fontSize: 13 },
+  addInstructorButtonText: { color: colors.ink, fontWeight: '600', fontSize: 13 },
   input: {
     backgroundColor: colors.bg,
     borderRadius: radius.sm,
@@ -315,8 +329,8 @@ const styles = StyleSheet.create({
   },
   dateButtonText: { fontSize: 15, fontWeight: '600', color: colors.ink },
   formError: { color: colors.danger, fontSize: 13, fontWeight: '600' },
-  submitButton: { backgroundColor: colors.accent, borderRadius: radius.sm, padding: spacing.md, alignItems: 'center' },
-  submitButtonDisabled: { backgroundColor: colors.locked },
+  submitButton: { backgroundColor: colors.accent, borderRadius: radius.pill, padding: spacing.md + 2, alignItems: 'center' },
+  submitButtonDisabled: { opacity: 0.3 },
   submitButtonText: { color: colors.onAccent, fontWeight: '700' },
 
   list: { gap: spacing.sm },
@@ -324,11 +338,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.surface,
-    borderRadius: radius.sm,
-    padding: spacing.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    padding: spacing.lg,
     gap: spacing.sm,
   },
-  classRowActive: { borderWidth: 1.5, borderColor: colors.accent },
+  classRowActive: { borderWidth: 1, borderColor: colors.accent },
   classTitle: { fontSize: 15, fontWeight: '700', color: colors.ink },
   classMeta: { ...type.caption, color: colors.inkSoft, marginTop: 2 },
   classStatus: { ...type.label, color: colors.inkSoft, marginTop: 4 },

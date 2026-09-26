@@ -1,8 +1,11 @@
 import { useState } from 'react';
-import { View, TextInput, Text, Pressable, StyleSheet } from 'react-native';
+import { TextInput, Text, Pressable, ActivityIndicator } from 'react-native';
 import { Link } from 'expo-router';
 import { useAuth } from '../../features/auth/useAuth';
 import { Screen } from '../../components/Screen';
+import { Wordmark } from '../../components/Wordmark';
+import { authStyles as styles } from '../../features/auth/styles';
+import { colors } from '../../theme';
 
 export default function SignUp() {
   const { signUp } = useAuth();
@@ -26,11 +29,11 @@ export default function SignUp() {
     return (
       <Screen edges={['top', 'bottom']} style={styles.container}>
         <Text style={styles.title}>Revisa tu correo</Text>
-        <Text>
+        <Text style={styles.body}>
           Te enviamos un enlace de confirmación a {email}. Ábrelo y después vuelve para iniciar sesión.
         </Text>
         <Link href="/(auth)/sign-in" style={styles.link}>
-          <Text>Ir a iniciar sesión</Text>
+          <Text style={styles.linkStrong}>Ir a iniciar sesión</Text>
         </Link>
       </Screen>
     );
@@ -38,11 +41,21 @@ export default function SignUp() {
 
   return (
     <Screen edges={['top', 'bottom']} style={styles.container}>
-      <Text style={styles.title}>Crear cuenta</Text>
-      <TextInput style={styles.input} placeholder="Nombre" value={name} onChangeText={setName} />
+      <Wordmark />
+      <Text style={styles.subtitle}>Crea tu cuenta</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="Nombre"
+        placeholderTextColor={colors.inkMuted}
+        keyboardAppearance="dark"
+        value={name}
+        onChangeText={setName}
+      />
       <TextInput
         style={styles.input}
         placeholder="Correo electrónico"
+        placeholderTextColor={colors.inkMuted}
+        keyboardAppearance="dark"
         autoCapitalize="none"
         keyboardType="email-address"
         value={email}
@@ -51,27 +64,25 @@ export default function SignUp() {
       <TextInput
         style={styles.input}
         placeholder="Contraseña"
+        placeholderTextColor={colors.inkMuted}
+        keyboardAppearance="dark"
         secureTextEntry
         value={password}
         onChangeText={setPassword}
       />
       {error && <Text style={styles.error}>{error}</Text>}
-      <Pressable style={styles.button} onPress={handleSignUp} disabled={submitting}>
-        <Text style={styles.buttonText}>{submitting ? 'Creando...' : 'Crear cuenta'}</Text>
+      <Pressable
+        style={({ pressed }) => [styles.button, pressed && styles.pressed]}
+        onPress={handleSignUp}
+        disabled={submitting}
+      >
+        {submitting ? <ActivityIndicator color={colors.onAccent} /> : <Text style={styles.buttonText}>Crear cuenta</Text>}
       </Pressable>
       <Link href="/(auth)/sign-in" style={styles.link}>
-        <Text>¿Ya tienes cuenta? Entra</Text>
+        <Text style={styles.linkText}>
+          ¿Ya tienes cuenta? <Text style={styles.linkStrong}>Entra</Text>
+        </Text>
       </Link>
     </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center', padding: 24, gap: 12 },
-  title: { fontSize: 32, fontWeight: '700', marginBottom: 24, textAlign: 'center' },
-  input: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 12 },
-  button: { backgroundColor: '#111', borderRadius: 8, padding: 14, alignItems: 'center', marginTop: 8 },
-  buttonText: { color: '#fff', fontWeight: '600' },
-  error: { color: '#c00' },
-  link: { marginTop: 16, alignSelf: 'center' },
-});

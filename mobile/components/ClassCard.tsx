@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, Pressable, ActivityIndicator, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { ClassWithBikes } from '../features/bookings/useBookings';
 import { BikeGrid } from './BikeGrid';
@@ -7,14 +7,22 @@ import { colors, radius, spacing, type } from '../theme';
 
 interface Props {
   classInfo: ClassWithBikes;
-  bookedBikeId: string | null;
+  busy: boolean;
   onBook: (classId: string, bikeId: string) => void;
-  onCancel: (classId: string) => void;
+  onCancel: (classId: string, reservationId: string) => void;
+  onJoinWaitlist: (classId: string) => void;
+  onLeaveWaitlist: (classId: string, entryId: string) => void;
 }
 
-export function ClassCard({ classInfo, bookedBikeId, onBook, onCancel }: Props) {
+const formatDeadline = (iso: string) =>
+  new Date(iso).toLocaleString('es', { weekday: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+export function ClassCard({ classInfo, busy, onBook, onCancel, onJoinWaitlist, onLeaveWaitlist }: Props) {
   const [expanded, setExpanded] = useState(false);
-  const [selectedBikeId, setSelectedBikeId] = useState<string | null>(null);
+  const [pickedBikeId, setPickedBikeId] = useState<string | null>(null);
+  const { bookedBikeId, myReservationId, myWaitlistEntryId, myWaitlistPosition } = classInfo;
+  // Past the deadline: no cancelling, and the waitlist is closed.
+  const beforeDeadline = Date.now() < new Date(classInfo.cancelDeadline).getTime();
 
   const freeBikes = classInfo.bikes.filter((b) => !b.taken || b.id === bookedBikeId);
   const spotsLeft = Math.max(0, classInfo.capacity - classInfo.bookedCount);
@@ -28,6 +36,8 @@ export function ClassCard({ classInfo, bookedBikeId, onBook, onCancel }: Props) 
   const bikesForGrid = capacityReached
     ? classInfo.bikes.map((b) => (b.taken ? b : { ...b, taken: true }))
     : classInfo.bikes;
+  // A refetch may reveal someone else took the bike we picked -- drop it.
+  const selectedBikeId = bikesForGrid.some((b) => b.id === pickedBikeId && !b.taken) ? pickedBikeId : null;
 
   return (
     <View style={[styles.card, !!bookedBikeId && styles.cardBooked]}>
@@ -44,6 +54,10 @@ export function ClassCard({ classInfo, bookedBikeId, onBook, onCancel }: Props) 
             <View style={styles.bookedBadge}>
               <Ionicons name="checkmark-circle" size={14} color={colors.onAccent} />
               <Text style={styles.bookedBadgeText}>Reservado</Text>
+            </View>
+          ) : myWaitlistEntryId ? (
+            <View style={styles.fullBadge}>
+              <Text style={styles.fullBadgeText}>En espera #{myWaitlistPosition}</Text>
             </View>
           ) : (
             <View style={isFull ? styles.fullBadge : styles.availableBadge}>
@@ -63,27 +77,63 @@ export function ClassCard({ classInfo, bookedBikeId, onBook, onCancel }: Props) 
 
       {expanded && (
         <View style={styles.body}>
-          <BikeGrid
-            bikes={bikesForGrid}
-            selectedBikeId={selectedBikeId}
-            bookedBikeId={bookedBikeId}
-            onSelect={(bikeId) => !bookedBikeId && setSelectedBikeId(bikeId)}
-          />
+          {!isFull && (
+            <BikeGrid
+              bikes={bikesForGrid}
+              selectedBikeId={selectedBikeId}
+              bookedBikeId={bookedBikeId}
+              onSelect={(bikeId) => !bookedBikeId && setPickedBikeId(bikeId)}
+            />
+          )}
 
-          {bookedBikeId ? (
-            <Pressable style={styles.cancelButton} onPress={() => onCancel(classInfo.id)}>
-              <Text style={styles.cancelButtonText}>Cancelar reserva</Text>
-            </Pressable>
-          ) : (
-            <Pressable
-              style={[styles.bookButton, !selectedBikeId && styles.bookButtonDisabled]}
-              disabled={!selectedBikeId}
-              onPress={() => selectedBikeId && onBook(classInfo.id, selectedBikeId)}
-            >
-              <Text style={styles.bookButtonText}>
-                {selectedBikeId ? `Reservar ${classInfo.bikes.find((b) => b.id === selectedBikeId)?.label}` : 'Elige una bici'}
+          {myReservationId ? (
+            <>
+              <Text style={styles.note}>
+                {beforeDeadline
+                  ? `Puedes cancelar hasta el ${formatDeadline(classInfo.cancelDeadline)}.`
+                  : 'Ya pasó el plazo para cancelar esta clase.'}
               </Text>
-            </Pressable>
+              {beforeDeadline && (
+                <Pressable style={styles.cancelButton} disabled={busy} onPress={() => onCancel(classInfo.id, myReservationId)}>
+                  {busy ? <ActivityIndicator color={colors.danger} /> : <Text style={styles.cancelButtonText}>Cancelar reserva</Text>}
+                </Pressable>
+              )}
+            </>
+          ) : myWaitlistEntryId ? (
+            <>
+              <Text style={styles.note}>
+                Estás #{myWaitlistPosition} en la lista de espera. Si se libera un cupo te reservamos automáticamente y se
+                descuenta 1 crédito.
+              </Text>
+              <Pressable style={styles.cancelButton} disabled={busy} onPress={() => onLeaveWaitlist(classInfo.id, myWaitlistEntryId)}>
+                {busy ? <ActivityIndicator color={colors.danger} /> : <Text style={styles.cancelButtonText}>Salir de la lista</Text>}
+              </Pressable>
+            </>
+          ) : isFull ? (
+            beforeDeadline ? (
+              <Pressable style={styles.bookButton} disabled={busy} onPress={() => onJoinWaitlist(classInfo.id)}>
+                {busy ? <ActivityIndicator color={colors.onAccent} /> : <Text style={styles.bookButtonText}>Unirme a la lista de espera</Text>}
+              </Pressable>
+            ) : (
+              <Text style={styles.note}>Clase completa. La lista de espera ya cerró.</Text>
+            )
+          ) : (
+            <>
+              {!beforeDeadline && <Text style={styles.note}>Si reservas ahora ya no podrás cancelar.</Text>}
+              <Pressable
+                style={[styles.bookButton, !selectedBikeId && styles.bookButtonDisabled]}
+                disabled={!selectedBikeId || busy}
+                onPress={() => selectedBikeId && onBook(classInfo.id, selectedBikeId)}
+              >
+                {busy ? (
+                  <ActivityIndicator color={colors.onAccent} />
+                ) : (
+                  <Text style={styles.bookButtonText}>
+                    {selectedBikeId ? `Reservar ${classInfo.bikes.find((b) => b.id === selectedBikeId)?.label}` : 'Elige una bici'}
+                  </Text>
+                )}
+              </Pressable>
+            </>
           )}
         </View>
       )}
@@ -92,16 +142,22 @@ export function ClassCard({ classInfo, bookedBikeId, onBook, onCancel }: Props) 
 }
 
 const styles = StyleSheet.create({
-  card: { borderRadius: radius.md, backgroundColor: colors.surface, overflow: 'hidden' },
-  cardBooked: { borderWidth: 1.5, borderColor: colors.accent },
+  card: {
+    borderRadius: radius.lg,
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    overflow: 'hidden',
+  },
+  cardBooked: { borderWidth: 1, borderColor: colors.accent },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: spacing.lg, gap: spacing.sm },
   title: { ...type.h2, color: colors.ink },
   meta: { ...type.caption, color: colors.inkSoft, marginTop: 2 },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   chevron: { marginLeft: 2 },
-  availableBadge: { backgroundColor: '#e6f4ea', borderRadius: radius.pill, paddingVertical: 4, paddingHorizontal: spacing.sm },
+  availableBadge: { backgroundColor: colors.successSoft, borderRadius: radius.pill, paddingVertical: 4, paddingHorizontal: spacing.sm },
   availableBadgeText: { color: colors.success, fontWeight: '700', fontSize: 12 },
-  fullBadge: { backgroundColor: '#fdeceb', borderRadius: radius.pill, paddingVertical: 4, paddingHorizontal: spacing.sm },
+  fullBadge: { backgroundColor: colors.dangerSoft, borderRadius: radius.pill, paddingVertical: 4, paddingHorizontal: spacing.sm },
   fullBadgeText: { color: colors.danger, fontWeight: '700', fontSize: 12 },
   bookedBadge: {
     flexDirection: 'row',
@@ -114,9 +170,10 @@ const styles = StyleSheet.create({
   },
   bookedBadgeText: { color: colors.onAccent, fontWeight: '700', fontSize: 12 },
   body: { paddingHorizontal: spacing.lg, paddingBottom: spacing.lg, gap: spacing.md },
-  bookButton: { backgroundColor: colors.ink, borderRadius: radius.sm, padding: spacing.md, alignItems: 'center' },
-  bookButtonDisabled: { backgroundColor: colors.locked },
-  bookButtonText: { color: colors.onDark, fontWeight: '600' },
-  cancelButton: { borderRadius: radius.sm, padding: spacing.md, alignItems: 'center', borderWidth: 1, borderColor: colors.danger },
+  note: { ...type.caption, color: colors.inkSoft },
+  bookButton: { backgroundColor: colors.accent, borderRadius: radius.pill, padding: spacing.md + 2, alignItems: 'center' },
+  bookButtonDisabled: { opacity: 0.3 },
+  bookButtonText: { color: colors.onAccent, fontWeight: '700' },
+  cancelButton: { borderRadius: radius.pill, padding: spacing.md + 2, alignItems: 'center', borderWidth: 1, borderColor: colors.danger },
   cancelButtonText: { color: colors.danger, fontWeight: '600' },
 });

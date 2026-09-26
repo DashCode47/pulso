@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import * as backendAuth from '../../services/backend';
 import { useAuthStore } from './store';
+import { registerForPushNotifications } from '../notifications/registerForPush';
 
 // Runs once from the root layout to hydrate session state on app launch,
 // then keeps it in sync (token refresh, sign-out from another tab/device).
@@ -22,12 +23,14 @@ export function useSessionHydration() {
       setUser(user);
       await syncAdmin(user);
       if (!cancelled) setLoading(false);
+      if (user) registerForPushNotifications();
     });
 
     const unsubscribe = backendAuth.onAuthStateChange((user) => {
       if (cancelled) return;
       setUser(user);
       syncAdmin(user);
+      if (user) registerForPushNotifications();
     });
 
     return () => {

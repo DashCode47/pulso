@@ -5,12 +5,11 @@ import {
   ClassTemplate,
   ClassTemplateInput,
   DAY_NAMES,
-  createClassTemplate,
   listClassTemplates,
-  setClassTemplateActive,
-  updateClassTemplate,
+  saveClassTemplate,
 } from '@/lib/classTemplates';
 import { Instructor, createInstructor, listInstructors } from '@/lib/instructors';
+import { Badge, Button, Card, EmptyState, ErrorBanner, Input, Label, PageHeader, Select } from '@/components/ui';
 
 const ADD_INSTRUCTOR = '__add__';
 
@@ -31,6 +30,7 @@ export default function SchedulePage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<ClassTemplateInput>(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const [newInstructorName, setNewInstructorName] = useState('');
   const [addingInstructor, setAddingInstructor] = useState(false);
@@ -110,135 +110,124 @@ export default function SchedulePage() {
     setSaving(true);
     setError(null);
 
-    const { error } = editingId ? await updateClassTemplate(editingId, form) : await createClassTemplate(form);
+    setNotice(null);
+    const { kept, error } = await saveClassTemplate(editingId, form);
     if (error) {
       setError(error.message);
       setSaving(false);
       return;
     }
 
+    setNotice(keptNotice(kept));
     cancelEdit();
     setSaving(false);
     refresh();
   }
 
   async function handleToggleActive(t: ClassTemplate) {
-    const { error } = await setClassTemplateActive(t.id, !t.active);
+    setNotice(null);
+    const { kept, error } = await saveClassTemplate(t.id, t, !t.active);
     if (error) {
       setError(error.message);
       return;
     }
+    setNotice(keptNotice(kept));
     refresh();
   }
 
   return (
     <div className="space-y-8">
-      <div>
-        <h2 className="text-xl font-semibold text-gray-900">Horario recurrente</h2>
-        <p className="mt-1 text-sm text-gray-500">
-          Cada plantilla se repite todas las semanas en el día y hora elegidos. Las clases concretas se generan
-          automáticamente con 4 semanas de anticipación.
+      <PageHeader
+        title="Horario recurrente"
+        description="Cada plantilla se repite todas las semanas en el día y hora elegidos. Las clases concretas se generan al guardar, con 4 semanas de anticipación. Al editar o desactivar, las clases futuras sin reservas se actualizan solas."
+      />
+
+      {error && <ErrorBanner>{error}</ErrorBanner>}
+      {notice && <ErrorBanner>{notice}</ErrorBanner>}
+
+      <Card className="p-5">
+        <p className="mb-4 text-xs font-semibold uppercase tracking-wide text-ink-muted">
+          {editingId ? 'Editar plantilla' : 'Nueva plantilla'}
         </p>
-      </div>
-
-      {error && <p className="rounded bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
-
-      <form ref={formRef} onSubmit={handleSubmit} className="grid grid-cols-2 gap-4 rounded-lg border bg-white p-4 sm:grid-cols-3">
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Título</label>
-          <input
-            required
-            value={form.title}
-            onChange={(e) => setForm({ ...form, title: e.target.value })}
-            className="mt-1 w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Instructor</label>
-          <select
-            required
-            value={form.instructorId}
-            onChange={(e) => handleInstructorChange(e.target.value)}
-            className="mt-1 w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900"
-          >
-            <option value="" disabled>
-              Selecciona...
-            </option>
-            {instructors.map((i) => (
-              <option key={i.id} value={i.id}>
-                {i.name}
+        <form ref={formRef} onSubmit={handleSubmit} className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+          <div>
+            <Label htmlFor="title">Título</Label>
+            <Input id="title" required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
+          </div>
+          <div>
+            <Label htmlFor="instructor">Instructor</Label>
+            <Select id="instructor" required value={form.instructorId} onChange={(e) => handleInstructorChange(e.target.value)}>
+              <option value="" disabled>
+                Selecciona...
               </option>
-            ))}
-            <option value={ADD_INSTRUCTOR}>+ Agregar instructor…</option>
-          </select>
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Día</label>
-          <select
-            value={form.dayOfWeek}
-            onChange={(e) => setForm({ ...form, dayOfWeek: Number(e.target.value) })}
-            className="mt-1 w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900"
-          >
-            {DAY_NAMES.map((name, i) => (
-              <option key={i} value={i}>
-                {name}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Hora</label>
-          <input
-            type="time"
-            required
-            value={form.startTime}
-            onChange={(e) => setForm({ ...form, startTime: e.target.value })}
-            className="mt-1 w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Duración (min)</label>
-          <input
-            type="number"
-            required
-            min={1}
-            value={form.durationMinutes}
-            onChange={(e) => setForm({ ...form, durationMinutes: Number(e.target.value) })}
-            className="mt-1 w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Capacidad</label>
-          <input
-            type="number"
-            required
-            min={1}
-            value={form.capacity}
-            onChange={(e) => setForm({ ...form, capacity: Number(e.target.value) })}
-            className="mt-1 w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900"
-          />
-        </div>
+              {instructors.map((i) => (
+                <option key={i.id} value={i.id}>
+                  {i.name}
+                </option>
+              ))}
+              <option value={ADD_INSTRUCTOR}>+ Agregar instructor…</option>
+            </Select>
+          </div>
+          <div>
+            <Label htmlFor="day">Día</Label>
+            <Select id="day" value={form.dayOfWeek} onChange={(e) => setForm({ ...form, dayOfWeek: Number(e.target.value) })}>
+              {DAY_NAMES.map((name, i) => (
+                <option key={i} value={i}>
+                  {name}
+                </option>
+              ))}
+            </Select>
+          </div>
+          <div>
+            <Label htmlFor="time">Hora</Label>
+            <Input
+              id="time"
+              type="time"
+              required
+              value={form.startTime}
+              onChange={(e) => setForm({ ...form, startTime: e.target.value })}
+            />
+          </div>
+          <div>
+            <Label htmlFor="duration">Duración (min)</Label>
+            <Input
+              id="duration"
+              type="number"
+              required
+              min={1}
+              value={form.durationMinutes}
+              onChange={(e) => setForm({ ...form, durationMinutes: Number(e.target.value) })}
+            />
+          </div>
+          <div>
+            <Label htmlFor="capacity">Capacidad</Label>
+            <Input
+              id="capacity"
+              type="number"
+              required
+              min={1}
+              value={form.capacity}
+              onChange={(e) => setForm({ ...form, capacity: Number(e.target.value) })}
+            />
+          </div>
 
-        <div className="col-span-full flex gap-2">
-          <button
-            type="submit"
-            disabled={saving || !form.instructorId}
-            className="rounded bg-gray-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-          >
-            {editingId ? 'Guardar cambios' : 'Crear plantilla'}
-          </button>
-          {editingId && (
-            <button type="button" onClick={cancelEdit} className="text-sm text-gray-500">
-              Cancelar
-            </button>
-          )}
-        </div>
-      </form>
+          <div className="col-span-full flex items-center gap-3">
+            <Button type="submit" disabled={saving || !form.instructorId}>
+              {editingId ? 'Guardar cambios' : 'Crear plantilla'}
+            </Button>
+            {editingId && (
+              <Button type="button" variant="link" onClick={cancelEdit}>
+                Cancelar
+              </Button>
+            )}
+          </div>
+        </form>
+      </Card>
 
       {loading ? (
-        <p className="text-sm text-gray-500">Cargando...</p>
+        <p className="text-sm text-ink-soft">Cargando...</p>
       ) : templates.length === 0 ? (
-        <p className="text-sm text-gray-400">Sin plantillas todavía.</p>
+        <EmptyState>Sin plantillas todavía.</EmptyState>
       ) : (
         <WeekGrid templates={templates} onEdit={startEdit} onCreateAt={startCreateAt} onToggleActive={handleToggleActive} />
       )}
@@ -246,34 +235,34 @@ export default function SchedulePage() {
       <dialog
         ref={modalRef}
         onClose={() => setNewInstructorName('')}
-        className="m-auto rounded-lg border p-0 backdrop:bg-black/40"
+        className="m-auto rounded-2xl border border-line bg-surface p-0 text-ink"
       >
-        <form onSubmit={handleCreateInstructor} className="w-72 space-y-3 p-4">
-          <h3 className="text-sm font-semibold text-gray-900">Nuevo instructor</h3>
-          <input
+        <form onSubmit={handleCreateInstructor} className="w-72 space-y-3 p-5">
+          <h3 className="text-sm font-semibold text-ink">Nuevo instructor</h3>
+          <Input
             autoFocus
             required
             value={newInstructorName}
             onChange={(e) => setNewInstructorName(e.target.value)}
             placeholder="Nombre"
-            className="w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900"
           />
           <div className="flex justify-end gap-2">
-            <button type="button" onClick={() => modalRef.current?.close()} className="text-sm text-gray-500">
+            <Button type="button" variant="link" onClick={() => modalRef.current?.close()}>
               Cancelar
-            </button>
-            <button
-              type="submit"
-              disabled={addingInstructor}
-              className="rounded bg-gray-900 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
-            >
+            </Button>
+            <Button type="submit" size="sm" disabled={addingInstructor}>
               Agregar
-            </button>
+            </Button>
           </div>
         </form>
       </dialog>
     </div>
   );
+}
+
+function keptNotice(kept: number) {
+  if (kept === 0) return null;
+  return `${kept} clase${kept === 1 ? '' : 's'} con reservas no se modific${kept === 1 ? 'ó' : 'aron'} y ya no coincide${kept === 1 ? '' : 'n'} con la plantilla. Revísala${kept === 1 ? '' : 's'} en Clases para mantenerla${kept === 1 ? '' : 's'} o cancelarla${kept === 1 ? '' : 's'}.`;
 }
 
 // Monday-first display order; day_of_week itself stays Postgres-native
@@ -296,13 +285,13 @@ function WeekGrid({
   for (const t of templates) byDayAndTime.set(`${t.dayOfWeek}|${t.startTime}`, t);
 
   return (
-    <div className="overflow-x-auto rounded-lg border bg-white">
-      <table className="w-full border-collapse text-sm text-gray-900">
+    <Card className="overflow-x-auto">
+      <table className="w-full border-collapse text-sm">
         <thead>
-          <tr className="border-b bg-gray-50 text-left text-gray-500">
-            <th className="px-3 py-2 font-medium">Hora</th>
+          <tr className="border-b border-line bg-surface-alt text-left text-xs uppercase tracking-wide text-ink-muted">
+            <th className="px-3 py-2.5 font-medium">Hora</th>
             {WEEK_ORDER.map((day) => (
-              <th key={day} className="px-3 py-2 font-medium">
+              <th key={day} className="px-3 py-2.5 font-medium">
                 {DAY_NAMES[day]}
               </th>
             ))}
@@ -310,8 +299,8 @@ function WeekGrid({
         </thead>
         <tbody>
           {times.map((time) => (
-            <tr key={time} className="border-b last:border-0">
-              <td className="whitespace-nowrap px-3 py-2 font-medium text-gray-500">{time.slice(0, 5)}</td>
+            <tr key={time} className="border-b border-line last:border-0">
+              <td className="whitespace-nowrap px-3 py-3 align-top text-xs font-semibold text-ink-muted">{time.slice(0, 5)}</td>
               {WEEK_ORDER.map((day) => {
                 const t = byDayAndTime.get(`${day}|${time}`);
                 if (!t) {
@@ -319,7 +308,7 @@ function WeekGrid({
                     <td key={day} className="px-2 py-2 align-top">
                       <button
                         onClick={() => onCreateAt(day, time)}
-                        className="w-full rounded border border-dashed border-gray-200 py-3 text-xs text-gray-300 hover:border-gray-300 hover:text-gray-500"
+                        className="flex w-full items-center justify-center rounded-lg border border-dashed border-line py-4 text-sm text-ink-muted transition-colors hover:border-ink-muted hover:text-ink-soft"
                       >
                         +
                       </button>
@@ -328,15 +317,18 @@ function WeekGrid({
                 }
                 return (
                   <td key={day} className="px-2 py-2 align-top">
-                    <div className={`space-y-1 rounded border p-2 ${t.active ? 'border-gray-200 bg-gray-50' : 'border-gray-100 bg-white opacity-50'}`}>
-                      <button onClick={() => onEdit(t)} className="block text-left text-sm font-medium text-gray-900 hover:underline">
-                        {t.title}
-                      </button>
-                      <p className="text-xs text-gray-500">{t.instructorName}</p>
-                      <p className="text-xs text-gray-400">
+                    <div className={`space-y-1.5 rounded-lg border border-line bg-surface-alt p-2.5 ${!t.active ? 'opacity-40' : ''}`}>
+                      <div className="flex items-start justify-between gap-1">
+                        <button onClick={() => onEdit(t)} className="text-left text-sm font-medium text-ink hover:text-mint">
+                          {t.title}
+                        </button>
+                        {!t.active && <Badge tone="neutral">Inactiva</Badge>}
+                      </div>
+                      <p className="text-xs text-ink-soft">{t.instructorName}</p>
+                      <p className="text-xs text-ink-muted">
                         {t.durationMinutes} min · cupo {t.capacity}
                       </p>
-                      <button onClick={() => onToggleActive(t)} className="text-xs text-gray-400 hover:text-gray-700">
+                      <button onClick={() => onToggleActive(t)} className="text-xs text-ink-muted hover:text-ink">
                         {t.active ? 'Desactivar' : 'Activar'}
                       </button>
                     </div>
@@ -347,6 +339,6 @@ function WeekGrid({
           ))}
         </tbody>
       </table>
-    </div>
+    </Card>
   );
 }
