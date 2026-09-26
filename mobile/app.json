@@ -9,7 +9,8 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.pulso.ec"
     },
     "android": {
       "package": "com.pulso.ec",
