@@ -43,6 +43,14 @@ export async function restoreSession(): Promise<AppUser | null> {
   return data.session?.user ? toAppUser(data.session.user) : null;
 }
 
+// Local read of the persisted session (no network). auth.getUser() would
+// re-validate the JWT against the Auth server on every call, an extra round
+// trip before each query; RLS already enforces who the caller is.
+export async function currentUserId(): Promise<string | null> {
+  const { data } = await backend.auth.getSession();
+  return data.session?.user.id ?? null;
+}
+
 export async function isAdmin(): Promise<boolean> {
   const { data, error } = await backend.rpc('is_admin');
   return !error && data === true;

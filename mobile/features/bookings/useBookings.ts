@@ -2,12 +2,23 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import * as backend from '../../services/backend';
 
 export type { ClassWithBikes, Bike } from '../../services/backend';
-export { groupClassesByDay } from './groupByDay';
+export { groupClassesByDay, groupClassesByWeekday } from './groupByDay';
 
 export function useUpcomingClasses() {
   // ponytail: polling instead of realtime -- keeps bike availability roughly
   // fresh; switch to a Supabase realtime channel if collisions stay common.
   return useQuery({ queryKey: ['classes', 'upcoming'], queryFn: backend.listUpcomingClasses, refetchInterval: 30_000 });
+}
+
+// Changes once a week (Sunday publish): a slow poll plus the refetch when the
+// app comes back to the foreground is plenty.
+export function useSchedulePublishedUntil() {
+  return useQuery({ queryKey: ['classes', 'publishedUntil'], queryFn: backend.getSchedulePublishedUntil, refetchInterval: 5 * 60_000 });
+}
+
+// Same key as the profile screen, so both share one cache entry.
+export function useMyMembership() {
+  return useQuery({ queryKey: ['my-membership'], queryFn: backend.getMyMembership });
 }
 
 export function useBookingActions() {
@@ -18,7 +29,10 @@ export function useBookingActions() {
   async function run(action: Promise<{ error: { message: string } | null }>) {
     const { error } = await action;
     if (error) console.warn('[bookings]', error.message);
-    await queryClient.invalidateQueries({ queryKey: ['classes', 'upcoming'] });
+    // Credits and "Mis reservas" (profile) change too, not just the class list.
+    await Promise.all(
+      [['classes'], ['my-membership'], ['my-history']].map((queryKey) => queryClient.invalidateQueries({ queryKey })),
+    );
     return { error };
   }
 

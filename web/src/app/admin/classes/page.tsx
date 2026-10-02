@@ -99,7 +99,7 @@ export default function ClassesPage() {
 
   return (
     <div className="space-y-8">
-      <PageHeader title="Próximas clases" description="Clases generadas a partir del horario recurrente, agrupadas por fecha." />
+      <PageHeader title="Próximas clases" description="Todas las clases futuras, agrupadas por fecha. El horario de cada semana se arma en Horario semanal." />
 
       {error && <ErrorBanner>{error}</ErrorBanner>}
 

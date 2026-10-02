@@ -1,0 +1,73 @@
+# Weekly encrypted backup of the Supabase database (the Free plan has no
+# downloadable backups). The repo is public, so the dump is never committed
+# and the artifact is GPG-encrypted: artifacts of public repos can be
+# downloaded by any GitHub user. Restore steps: docs/backend.md#backups
+#
+# Secrets (Settings > Secrets and variables > Actions):
+#   SUPABASE_DB_URL    Session pooler connection string (Dashboard > Connect >
+#                      Session pooler). Runners are IPv4-only and the direct
+#                      db.<ref>.supabase.co host is IPv6, so it must be the pooler.
+#   BACKUP_PASSPHRASE  Long random passphrase. Keep a copy outside GitHub:
+#                      without it the backups can't be decrypted.
+name: DB backup
+
+on:
+  schedule:
+    - cron: '0 8 * * 1' # Mondays 03:00 Bogota
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      # Not set up yet (no SUPABASE_DB_URL): skip with a warning instead of a
+      # weekly failure email. URL set but weak/missing passphrase: fail -- an
+      # empty passphrase would still "encrypt".
+      - name: Check secrets
+        id: secrets
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          if [ -z "$SUPABASE_DB_URL" ]; then
+            echo "::warning::Backups not configured: add SUPABASE_DB_URL and BACKUP_PASSPHRASE (docs/backend.md#backups)"
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          [ ${#BACKUP_PASSPHRASE} -ge 16 ] || { echo "::error::BACKUP_PASSPHRASE missing or shorter than 16 chars"; exit 1; }
+          echo "configured=true" >> "$GITHUB_OUTPUT"
+
+      - uses: supabase/setup-cli@v1
+        if: steps.secrets.outputs.configured == 'true'
+        with:
+          version: latest
+
+      - name: Dump roles, schema and data
+        if: steps.secrets.outputs.configured == 'true'
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          supabase db dump --db-url "$SUPABASE_DB_URL" -f roles.sql --role-only
+          supabase db dump --db-url "$SUPABASE_DB_URL" -f schema.sql
+          supabase db dump --db-url "$SUPABASE_DB_URL" -f data.sql --use-copy --data-only
+
+      - name: Encrypt
+        if: steps.secrets.outputs.configured == 'true'
+        env:
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          tar czf backup.tar.gz roles.sql schema.sql data.sql
+          gpg --batch --yes --pinentry-mode loopback --passphrase "$BACKUP_PASSPHRASE" \
+            --symmetric --cipher-algo AES256 -o "pulso-db-$(date -u +%F).tar.gz.gpg" backup.tar.gz
+          rm roles.sql schema.sql data.sql backup.tar.gz
+
+      - uses: actions/upload-artifact@v4
+        if: steps.secrets.outputs.configured == 'true'
+        with:
+          name: pulso-db-backup-${{ github.run_number }}
+          path: pulso-db-*.tar.gz.gpg
+          retention-days: 90
+          if-no-files-found: error

@@ -8,7 +8,7 @@ import { BellIcon, CalendarIcon, ImageIcon, LogoutIcon, RepeatIcon, SettingsIcon
 
 const navItems = [
   { href: '/admin/classes', label: 'Clases', icon: CalendarIcon },
-  { href: '/admin/schedule', label: 'Horario recurrente', icon: RepeatIcon },
+  { href: '/admin/schedule', label: 'Horario semanal', icon: RepeatIcon },
   { href: '/admin/members', label: 'Miembros', icon: UsersIcon },
   { href: '/admin/news', label: 'Noticias', icon: ImageIcon },
   { href: '/admin/notifications', label: 'Notificaciones', icon: BellIcon },

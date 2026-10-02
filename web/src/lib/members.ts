@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/client';
 
-export type MembershipStatus = 'active' | 'paused' | 'cancelled' | 'expired';
+export type MembershipStatus = 'active' | 'expired' | 'cancelled';
 
 export type Member = {
   userId: string;
@@ -42,17 +42,18 @@ export type Membership = {
   creditsPerCycle: number;
   weeklyGoal: number;
   status: MembershipStatus;
+  cycleStart: string;
   cycleEnd: string;
 };
 
 // RLS grants admins full read/write on memberships (see access-control.sql).
 // Fetches the most recent membership regardless of status, so an
-// expired/paused/cancelled one can still be viewed and renewed/reactivated.
+// expired/cancelled one can still be viewed and renewed/reactivated.
 export async function getLatestMembership(userId: string): Promise<Membership | null> {
   const supabase = createClient();
   const { data, error } = await supabase
     .from('memberships')
-    .select('id, plan_name, credits_per_cycle, weekly_goal, status, cycle_end')
+    .select('id, plan_name, credits_per_cycle, weekly_goal, status, cycle_start, cycle_end')
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
     .limit(1)
@@ -65,11 +66,13 @@ export async function getLatestMembership(userId: string): Promise<Membership | 
     creditsPerCycle: data.credits_per_cycle,
     weeklyGoal: data.weekly_goal,
     status: data.status,
+    cycleStart: data.cycle_start,
     cycleEnd: data.cycle_end,
   };
 }
 
-export type MembershipInput = { planName: string; creditsPerCycle: number; weeklyGoal: number };
+// cycleStart is YYYY-MM-DD; cycle_end is derived from it by a DB trigger (+1 month).
+export type MembershipInput = { planName: string; creditsPerCycle: number; weeklyGoal: number; cycleStart: string };
 
 // Grants the first cycle's credits immediately and sets cycle_end to 1 month
 // out (see admin_create_membership() in the DB).
@@ -80,6 +83,7 @@ export async function createMembership(userId: string, input: MembershipInput) {
     p_plan_name: input.planName,
     p_credits_per_cycle: input.creditsPerCycle,
     p_weekly_goal: input.weeklyGoal,
+    p_cycle_start: input.cycleStart,
   });
   return { error };
 }
@@ -88,14 +92,16 @@ export async function updateMembership(membershipId: string, input: MembershipIn
   const supabase = createClient();
   const { error } = await supabase
     .from('memberships')
-    .update({ plan_name: input.planName, credits_per_cycle: input.creditsPerCycle, weekly_goal: input.weeklyGoal })
+    .update({ plan_name: input.planName, credits_per_cycle: input.creditsPerCycle, weekly_goal: input.weeklyGoal, cycle_start: input.cycleStart })
     .eq('id', membershipId);
   return { error };
 }
 
-export async function setMembershipStatus(membershipId: string, status: 'active' | 'paused' | 'cancelled') {
+// Also cancels the member's future bookings and zeroes their credits (see
+// admin_cancel_membership() in the DB).
+export async function cancelMembership(membershipId: string) {
   const supabase = createClient();
-  const { error } = await supabase.from('memberships').update({ status }).eq('id', membershipId);
+  const { error } = await supabase.rpc('admin_cancel_membership', { p_membership_id: membershipId });
   return { error };
 }
 
@@ -107,12 +113,13 @@ export async function adjustCredits(userId: string, amount: number, note: string
   return { error };
 }
 
-// Renews credits AND extends cycle_end by 1 month for one or more members at
+// Resets credits to the plan's amount (leftovers don't roll over) AND restarts
+// the cycle at cycleStart (default today) for one or more members at
 // once (reactivates an expired membership too) -- there is no automatic
 // monthly grant anymore, the admin is the one who knows who actually
 // renewed/paid.
-export async function grantCreditsBulk(userIds: string[]) {
+export async function grantCreditsBulk(userIds: string[], cycleStart?: string) {
   const supabase = createClient();
-  const { error } = await supabase.rpc('admin_grant_credits_bulk', { p_user_ids: userIds });
+  const { error } = await supabase.rpc('admin_grant_credits_bulk', { p_user_ids: userIds, p_cycle_start: cycleStart });
   return { error };
 }

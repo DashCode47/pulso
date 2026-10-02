@@ -10,5 +10,7 @@ export * from './classes';
 export * from './members';
 export * from './dashboard';
 export * from './profile';
+export * from './leaderboard';
+export * from './progress';
 export * from './news';
 export * from './notifications';

@@ -8,6 +8,8 @@ import { colors, radius, spacing, type } from '../theme';
 interface Props {
   classInfo: ClassWithBikes;
   busy: boolean;
+  // No valid membership: can still cancel/leave the waitlist, not book or join.
+  locked: boolean;
   onBook: (classId: string, bikeId: string) => void;
   onCancel: (classId: string, reservationId: string) => void;
   onJoinWaitlist: (classId: string) => void;
@@ -17,7 +19,7 @@ interface Props {
 const formatDeadline = (iso: string) =>
   new Date(iso).toLocaleString('es', { weekday: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 
-export function ClassCard({ classInfo, busy, onBook, onCancel, onJoinWaitlist, onLeaveWaitlist }: Props) {
+export function ClassCard({ classInfo, busy, locked, onBook, onCancel, onJoinWaitlist, onLeaveWaitlist }: Props) {
   const [expanded, setExpanded] = useState(false);
   const [pickedBikeId, setPickedBikeId] = useState<string | null>(null);
   const { bookedBikeId, myReservationId, myWaitlistEntryId, myWaitlistPosition } = classInfo;
@@ -77,7 +79,7 @@ export function ClassCard({ classInfo, busy, onBook, onCancel, onJoinWaitlist, o
 
       {expanded && (
         <View style={styles.body}>
-          {!isFull && (
+          {!isFull && !(locked && !bookedBikeId) && (
             <BikeGrid
               bikes={bikesForGrid}
               selectedBikeId={selectedBikeId}
@@ -109,6 +111,11 @@ export function ClassCard({ classInfo, busy, onBook, onCancel, onJoinWaitlist, o
                 {busy ? <ActivityIndicator color={colors.danger} /> : <Text style={styles.cancelButtonText}>Salir de la lista</Text>}
               </Pressable>
             </>
+          ) : locked ? (
+            <View style={styles.lockedNote}>
+              <Ionicons name="lock-closed" size={14} color={colors.inkSoft} />
+              <Text style={styles.note}>Necesitas una membresía activa para reservar esta clase.</Text>
+            </View>
           ) : isFull ? (
             beforeDeadline ? (
               <Pressable style={styles.bookButton} disabled={busy} onPress={() => onJoinWaitlist(classInfo.id)}>
@@ -171,6 +178,7 @@ const styles = StyleSheet.create({
   bookedBadgeText: { color: colors.onAccent, fontWeight: '700', fontSize: 12 },
   body: { paddingHorizontal: spacing.lg, paddingBottom: spacing.lg, gap: spacing.md },
   note: { ...type.caption, color: colors.inkSoft },
+  lockedNote: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   bookButton: { backgroundColor: colors.accent, borderRadius: radius.pill, padding: spacing.md + 2, alignItems: 'center' },
   bookButtonDisabled: { opacity: 0.3 },
   bookButtonText: { color: colors.onAccent, fontWeight: '700' },

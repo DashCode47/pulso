@@ -1,4 +1,6 @@
-# Clases, horario recurrente e instructores
+# Clases, horario semanal e instructores
+
+> **Desde 2026-10-01 el horario se arma semana a semana**, no desde plantillas recurrentes: el estudio sube cada domingo el horario de la semana siguiente y cambia de una semana a otra. En `/admin/schedule` el admin elige la semana (por defecto, la siguiente), agrega/edita/quita clases concretas y puede **Copiar semana anterior** como punto de partida; luego publica. El cron `generate-classes-daily` se desactivó (`20261001020000_weekly-schedule-editor.sql`). Las plantillas y su RPC siguen en la base, sin uso desde la web; lo que sigue sobre plantillas queda como referencia histórica.
 
 Hay dos tipos de filas:
 
@@ -26,6 +28,14 @@ Una clase generada desde una plantilla guarda `template_id`. Una clase suelta (c
 ```
 plantilla (lun 07:00) ──cron diario──▶ classes: lun 5, lun 12, lun 19, lun 26 … (ventana de 28 días)
 ```
+
+## Publicación semanal
+
+El horario de la semana siguiente se sube los domingos (la hora varía). Las clases se generan igual con 28 días de anticipación, pero los miembros **solo ven y reservan hasta `studio_settings.schedule_published_until`** (fecha de Bogotá, siempre un domingo). El admin ve todo.
+
+- El admin publica con **Publicar semana siguiente** en `/admin/schedule` (`admin_publish_next_week()`). De jueves a domingo publica la semana siguiente; de lunes a miércoles, la actual (subida tarde). Es idempotente.
+- La RLS de `classes` oculta lo no publicado y un trigger en `reservations` y `waitlist_entries` bloquea reservar/entrar a la lista (`class_not_available`).
+- Los domingos la app muestra en **Reservar** si la próxima semana ya está publicada o no.
 
 ## Guardar una plantilla — `admin_save_class_template()`
 
@@ -80,7 +90,7 @@ Tabla `instructors`: nombre único y `active`. Clases y plantillas referencian `
 
 | Qué | Web admin | App mobile (tab Admin) |
 |---|---|---|
-| Horario semanal (plantillas) | `/admin/schedule`: grilla semanal, crear, editar y activar/desactivar (vía `admin_save_class_template`) | — |
+| Horario semanal | `/admin/schedule`: grilla por semana con clases concretas: agregar (insert directo), editar (`admin_update_class`), quitar (`admin_cancel_class`), copiar semana anterior y publicar | Tab Admin: misma lógica por semana (navegar semanas, crear/editar/cancelar, copiar semana anterior, publicar) |
 | Próximas clases | `/admin/classes`: lista, ocupación, lista de inscritos y cancelar | Crear clase suelta, editar, cancelar |
 | Instructores | Se crean desde el formulario de la plantilla | Desde el formulario de la clase |
 

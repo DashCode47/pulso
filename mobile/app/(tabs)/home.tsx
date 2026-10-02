@@ -1,10 +1,14 @@
-import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
+import { useCallback } from 'react';
+import { View, Text, Image, Pressable, ScrollView, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '../../features/auth/store';
-import { mockHomeSummary } from '../../features/home/mockData';
+import { useMyProgress, weeklyGoalHint } from '../../features/progress/useMyProgress';
 import { useNews } from '../../features/home/useNews';
+import { useMyAvatar } from '../../features/profile/useAvatar';
+import { groupClassesByDay, useUpcomingClasses, useMyMembership } from '../../features/bookings/useBookings';
+import { membershipBlockMessage } from '../../features/bookings/errorMessages';
 import * as backend from '../../services/backend';
 import { ProgressBar } from '../../components/ProgressBar';
 import { NewsCarousel } from '../../components/NewsCarousel';
@@ -101,10 +105,23 @@ function AdminHome() {
 function MemberHome() {
   const user = useAuthStore((s) => s.user);
   const router = useRouter();
-  const summary = mockHomeSummary;
+  const { data: progress, refetch: refetchProgress } = useMyProgress();
+  useFocusEffect(useCallback(() => void refetchProgress(), [refetchProgress]));
+  const weeklyGoal = progress?.weeklyGoal ?? 3;
+  const weeklyCompleted = progress?.weeklyCompleted ?? 0;
   const { data: news, isLoading: loadingNews } = useNews();
+  const { data: avatarUrl } = useMyAvatar();
+  const { data: classes } = useUpcomingClasses();
+  const { data: membership } = useMyMembership();
+  const blockMessage = membershipBlockMessage(membership);
+  const next = classes?.find((c) => c.myReservationId);
+  const nextClass = next && {
+    title: next.title,
+    dayLabel: groupClassesByDay([next])[0].label,
+    startsAt: new Date(next.startsAt).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' }),
+    bikeLabel: next.bikes.find((b) => b.id === next.bookedBikeId)?.label ?? '',
+  };
   const firstName = (user?.name ?? user?.email ?? '').split(' ')[0].split('@')[0];
-  const classesLeft = summary.weeklyGoal - summary.weeklyCompleted;
 
   return (
     <Screen>
@@ -115,7 +132,11 @@ function MemberHome() {
             <Text style={styles.greeting}>Hola, {firstName}</Text>
           </View>
           <Pressable style={styles.avatar} onPress={() => router.push('/(tabs)/profile')} accessibilityLabel="Perfil">
-            <Text style={styles.avatarText}>{firstName.charAt(0).toUpperCase()}</Text>
+            {avatarUrl ? (
+              <Image source={{ uri: avatarUrl }} style={styles.avatarImage} />
+            ) : (
+              <Text style={styles.avatarText}>{firstName.charAt(0).toUpperCase()}</Text>
+            )}
           </Pressable>
         </View>
 
@@ -129,20 +150,30 @@ function MemberHome() {
           !!news?.length && <NewsCarousel items={news} />
         )}
 
-        {summary.nextClass ? (
+        {!classes ? null : nextClass ? (
           <View style={styles.nextClassCard}>
             <View style={styles.nextClassTop}>
               <Text style={styles.nextClassLabel}>Tu próxima clase</Text>
-              {/* Solo late si la clase es hoy: el movimiento avisa que está cerca. */}
-              {summary.nextClass.dayLabel === 'Hoy' && <PulseLine width={56} height={20} color={colors.onAccent} bg={colors.accent} />}
+              <PulseLine width={56} height={20} color={colors.onAccent} bg={colors.accent} />
             </View>
-            <Text style={styles.nextClassTitle}>{summary.nextClass.title}</Text>
+            <Text style={styles.nextClassTitle}>{nextClass.title}</Text>
             <Text style={styles.nextClassMeta}>
-              {summary.nextClass.dayLabel} · {summary.nextClass.startsAt} · {summary.nextClass.bikeLabel}
+              {nextClass.dayLabel} · {nextClass.startsAt} · {nextClass.bikeLabel}
             </Text>
-            <Pressable style={({ pressed }) => [styles.viewButton, pressed && styles.pressed]} onPress={() => router.push('/(tabs)/bookings')}>
+            <Pressable
+              style={({ pressed }) => [styles.viewButton, pressed && styles.pressed]}
+              onPress={() => router.push({ pathname: '/(tabs)/bookings', params: { classId: next.id } })}
+            >
               <Text style={styles.viewButtonText}>Ver reserva</Text>
               <Ionicons name="arrow-forward" size={16} color={colors.accent} />
+            </Pressable>
+          </View>
+        ) : blockMessage ? (
+          <View style={styles.emptyClassCard}>
+            <Ionicons name="lock-closed-outline" size={28} color={colors.danger} />
+            <Text style={styles.emptyClassText}>{blockMessage}</Text>
+            <Pressable style={({ pressed }) => [styles.bookButton, pressed && styles.pressed]} onPress={() => router.push('/(tabs)/profile')}>
+              <Text style={styles.bookButtonText}>Ver mi membresía</Text>
             </Pressable>
           </View>
         ) : (
@@ -158,17 +189,17 @@ function MemberHome() {
         <View style={styles.statsRow}>
           <View style={styles.statChip}>
             <Ionicons name="flame" size={16} color={colors.ink} />
-            <Text style={styles.statValue}>{summary.currentStreakWeeks}</Text>
+            <Text style={styles.statValue}>{progress?.currentStreakWeeks ?? '–'}</Text>
             <Text style={styles.statLabel}>semanas</Text>
           </View>
           <View style={styles.statChip}>
             <Ionicons name="flash" size={16} color={colors.ink} />
-            <Text style={styles.statValue}>{summary.weeklyXp}</Text>
+            <Text style={styles.statValue}>{progress?.weeklyXp ?? '–'}</Text>
             <Text style={styles.statLabel}>XP semana</Text>
           </View>
           <View style={styles.statChip}>
             <Ionicons name="podium" size={16} color={colors.ink} />
-            <Text style={styles.statValue}>#{summary.leaderboardPosition}</Text>
+            <Text style={styles.statValue}>{progress?.rank ? `#${progress.rank}` : '–'}</Text>
             <Text style={styles.statLabel}>ranking</Text>
           </View>
         </View>
@@ -177,15 +208,11 @@ function MemberHome() {
           <View style={styles.weeklyHeader}>
             <Text style={styles.weeklyTitle}>Objetivo semanal</Text>
             <Text style={styles.weeklyCount}>
-              {summary.weeklyCompleted}/{summary.weeklyGoal}
+              {weeklyCompleted}/{weeklyGoal}
             </Text>
           </View>
-          <ProgressBar progress={summary.weeklyCompleted / summary.weeklyGoal} />
-          <Text style={styles.weeklyHint}>
-            {classesLeft <= 0
-              ? '¡Meta semanal completada!'
-              : `${classesLeft === 1 ? 'Una clase más' : `${classesLeft} clases más`} para cumplir tu meta`}
-          </Text>
+          <ProgressBar progress={weeklyCompleted / weeklyGoal} />
+          <Text style={styles.weeklyHint}>{weeklyGoalHint(weeklyCompleted, weeklyGoal)}</Text>
         </View>
       </ScrollView>
     </Screen>
@@ -218,8 +245,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surface,
+    overflow: 'hidden',
   },
   avatarText: { fontSize: 17, fontWeight: '700', color: colors.ink },
+  avatarImage: { width: 44, height: 44, borderRadius: 22 },
   pressed: { transform: [{ scale: 0.98 }], opacity: 0.9 },
   newsSkeleton: { ...card, height: 210, alignItems: 'center', justifyContent: 'center' },
 
@@ -268,7 +297,7 @@ const styles = StyleSheet.create({
   viewButtonText: { color: colors.accent, fontWeight: '700' },
 
   emptyClassCard: { ...card, borderRadius: radius.xl, padding: spacing.xxl, alignItems: 'center', gap: spacing.sm },
-  emptyClassText: { color: colors.inkSoft, fontSize: 14 },
+  emptyClassText: { color: colors.inkSoft, fontSize: 14, textAlign: 'center' },
   bookButton: {
     backgroundColor: colors.accent,
     borderRadius: radius.pill,

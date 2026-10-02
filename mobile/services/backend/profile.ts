@@ -1,26 +1,28 @@
 import { backend } from './client';
+import { currentUserId } from './auth';
+import { firstEmbed } from './embed';
 
 export type MyMembership = {
   planName: string;
   creditsBalance: number;
   creditsPerCycle: number;
   cycleEnd: string;
-  status: 'active' | 'paused' | 'cancelled' | 'expired';
+  status: 'active' | 'expired' | 'cancelled';
 };
 
 // RLS grants a user select on their own membership/user_stats row
 // ("read own membership" / "read own stats") -- no RPC needed.
 export async function getMyMembership(): Promise<MyMembership | null> {
-  const {
-    data: { user },
-  } = await backend.auth.getUser();
-  if (!user) return null;
+  const userId = await currentUserId();
+  if (!userId) return null;
 
   const { data: membership, error: membershipError } = await backend
     .from('memberships')
     .select('plan_name, credits_per_cycle, cycle_end, status')
-    .eq('user_id', user.id)
-    .order('cycle_start', { ascending: false })
+    .eq('user_id', userId)
+    // created_at, like the admin and search_members(): a re-enrollment can share
+    // cycle_start with the cancelled row it replaces.
+    .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
   if (membershipError) throw membershipError;
@@ -29,7 +31,7 @@ export async function getMyMembership(): Promise<MyMembership | null> {
   const { data: stats, error: statsError } = await backend
     .from('user_stats')
     .select('credits_balance')
-    .eq('user_id', user.id)
+    .eq('user_id', userId)
     .maybeSingle();
   if (statsError) throw statsError;
 
@@ -42,6 +44,33 @@ export async function getMyMembership(): Promise<MyMembership | null> {
   };
 }
 
+export async function getMyAvatarUrl(): Promise<string | null> {
+  const userId = await currentUserId();
+  if (!userId) return null;
+
+  const { data, error } = await backend.from('profiles').select('avatar_url').eq('id', userId).maybeSingle();
+  if (error) throw error;
+  return data?.avatar_url ?? null;
+}
+
+// Fixed path per user (upsert) so old photos don't pile up in the bucket;
+// the ?t= suffix busts Image caches since the URL would otherwise not change.
+export async function uploadMyAvatar(uri: string, contentType: string): Promise<string> {
+  const userId = await currentUserId();
+  if (!userId) throw new Error('Usuario no autenticado');
+
+  const body = await fetch(uri).then((r) => r.arrayBuffer());
+  const path = `${userId}/avatar`;
+  const { error: uploadError } = await backend.storage.from('avatars').upload(path, body, { contentType, upsert: true });
+  if (uploadError) throw uploadError;
+
+  const { data } = backend.storage.from('avatars').getPublicUrl(path);
+  const url = `${data.publicUrl}?t=${Date.now()}`;
+  const { error } = await backend.from('profiles').update({ avatar_url: url }).eq('id', userId);
+  if (error) throw error;
+  return url;
+}
+
 export type MyHistoryEntry = {
   id: string;
   classTitle: string;
@@ -50,29 +79,20 @@ export type MyHistoryEntry = {
 };
 
 export async function listMyHistory(): Promise<MyHistoryEntry[]> {
-  const {
-    data: { user },
-  } = await backend.auth.getUser();
-  if (!user) return [];
+  const userId = await currentUserId();
+  if (!userId) return [];
 
-  const { data: reservations, error } = await backend
+  // One request: the class comes embedded instead of a second lookup.
+  const { data, error } = await backend
     .from('reservations')
-    .select('id, class_id, status')
-    .eq('user_id', user.id)
+    .select('id, status, classes(title, starts_at)')
+    .eq('user_id', userId)
     .order('created_at', { ascending: false })
     .limit(20);
   if (error) throw error;
-  if (!reservations?.length) return [];
 
-  const classIds = [...new Set(reservations.map((r) => r.class_id))];
-  const { data: classes, error: classesError } = await backend.from('classes').select('id, title, starts_at').in('id', classIds);
-  if (classesError) throw classesError;
-  const classById = new Map((classes ?? []).map((c) => [c.id, c]));
-
-  return reservations.map((r) => ({
-    id: r.id,
-    classTitle: classById.get(r.class_id)?.title ?? 'Clase eliminada',
-    startsAt: classById.get(r.class_id)?.starts_at ?? '',
-    status: r.status,
-  }));
+  return (data ?? []).map((r) => {
+    const c = firstEmbed(r.classes);
+    return { id: r.id, classTitle: c?.title ?? 'Clase eliminada', startsAt: c?.starts_at ?? '', status: r.status };
+  });
 }

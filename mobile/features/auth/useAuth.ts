@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import * as backendAuth from '../../services/backend';
 import { useAuthStore } from './store';
+import { queryClient } from '../../lib/queryClient';
 import { registerForPushNotifications } from '../notifications/registerForPush';
 
 // Runs once from the root layout to hydrate session state on app launch,
@@ -71,6 +72,8 @@ export function useAuth() {
       await backendAuth.signOut();
       setUser(null);
       setIsAdmin(false);
+      // Per-user caches (avatar, membership, history) must not leak to the next login.
+      queryClient.clear();
     },
   };
 }

@@ -29,3 +29,29 @@ export function groupClassesByDay<T extends { startsAt: string }>(classes: T[], 
 
   return [...days.values()];
 }
+
+const WEEKDAY_LABELS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+
+// Schedules are published on Sundays for Monday–Saturday, so the screen always
+// shows exactly one week: the current one Monday–Saturday, the next one on
+// Sunday. Classes outside those six days are dropped.
+export function groupClassesByWeekday<T extends { startsAt: string }>(classes: T[], now = new Date()): DayGroup<T>[] {
+  const monday = new Date(now);
+  monday.setHours(0, 0, 0, 0);
+  const dow = monday.getDay(); // 0 = Sunday
+  monday.setDate(monday.getDate() + (dow === 0 ? 1 : 1 - dow));
+
+  const days = WEEKDAY_LABELS.map((label, i) => {
+    const d = new Date(monday);
+    d.setDate(d.getDate() + i);
+    return { key: localKey(d), label, classes: [] as T[] };
+  });
+  for (const classInfo of classes) {
+    days.find((d) => d.key === localKey(new Date(classInfo.startsAt)))?.classes.push(classInfo);
+  }
+  return days;
+}
+
+function localKey(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}

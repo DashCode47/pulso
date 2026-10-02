@@ -1,4 +1,5 @@
 import { backend } from './client';
+import { firstEmbed } from './embed';
 
 export type MemberSummary = {
   userId: string;
@@ -30,26 +31,19 @@ export type MemberReservation = {
 };
 
 export async function listMemberReservations(userId: string): Promise<MemberReservation[]> {
-  const { data: reservations, error } = await backend
+  // One request: the class comes embedded instead of a second lookup.
+  const { data, error } = await backend
     .from('reservations')
-    .select('id, class_id, status')
+    .select('id, status, classes(title, starts_at)')
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
     .limit(20);
   if (error) throw error;
-  if (!reservations?.length) return [];
 
-  const classIds = [...new Set(reservations.map((r) => r.class_id))];
-  const { data: classes, error: classesError } = await backend.from('classes').select('id, title, starts_at').in('id', classIds);
-  if (classesError) throw classesError;
-  const classById = new Map((classes ?? []).map((c) => [c.id, c]));
-
-  return reservations.map((r) => ({
-    id: r.id,
-    classTitle: classById.get(r.class_id)?.title ?? 'Clase eliminada',
-    startsAt: classById.get(r.class_id)?.starts_at ?? '',
-    status: r.status,
-  }));
+  return (data ?? []).map((r) => {
+    const c = firstEmbed(r.classes);
+    return { id: r.id, classTitle: c?.title ?? 'Clase eliminada', startsAt: c?.starts_at ?? '', status: r.status };
+  });
 }
 
 export async function adjustCredits(userId: string, amount: number, note?: string) {

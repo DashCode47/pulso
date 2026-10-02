@@ -112,4 +112,3 @@ Dónde se usa:
 
 - Logo en alta resolución (PNG o SVG con fondo transparente) para el ícono de la app y el splash, que hoy son los de Expo por defecto. El `Wordmark` aproxima el logo con la fuente del sistema.
 - Pantalla en el panel web para publicar noticias (hoy se hace por SQL).
-- Home: el pulso de la tarjeta sale cuando `dayLabel === 'Hoy'`, que viene del mock. Con datos reales hay que calcularlo a partir de la fecha de la clase.

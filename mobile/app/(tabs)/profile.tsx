@@ -1,9 +1,11 @@
 import { useState } from 'react';
-import { View, Text, Pressable, ScrollView, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, Image, Pressable, ScrollView, ActivityIndicator, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../../features/auth/useAuth';
 import { CANCEL_ERROR_MESSAGES } from '../../features/bookings/errorMessages';
+import { useBookingActions } from '../../features/bookings/useBookings';
+import { useChangeAvatar, useMyAvatar } from '../../features/profile/useAvatar';
 import * as backend from '../../services/backend';
 import { ProgressBar } from '../../components/ProgressBar';
 import { Screen } from '../../components/Screen';
@@ -19,15 +21,22 @@ const pastStatusStyle: Record<'attended' | 'cancelled' | 'no_show', { label: str
 
 const membershipStatusLabel: Record<backend.MyMembership['status'], string> = {
   active: 'Activa',
-  paused: 'Pausada',
   cancelled: 'Cancelada',
   expired: 'Vencida',
 };
 
+// cycle_end is a plain date: parse it as local midnight. new Date('YYYY-MM-DD')
+// is UTC midnight, which in Bogota shows the previous day.
+function formatDay(isoDate: string) {
+  return new Date(isoDate + 'T00:00:00').toLocaleDateString('es', { day: '2-digit', month: 'long' });
+}
+
 export default function Profile() {
   const { user, isAdmin, signOut } = useAuth();
-  const queryClient = useQueryClient();
+  const actions = useBookingActions();
   const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const { data: avatarUrl } = useMyAvatar();
+  const changeAvatar = useChangeAvatar();
   const { data: membership, isLoading: loadingMembership } = useQuery({
     queryKey: ['my-membership'],
     queryFn: backend.getMyMembership,
@@ -52,16 +61,9 @@ export default function Profile() {
         style: 'destructive',
         onPress: async () => {
           setCancellingId(entry.id);
-          const { error } = await backend.cancelReservation(entry.id);
+          const { error } = await actions.cancel(entry.id);
           setCancellingId(null);
-          if (error) {
-            showAlert('Error', CANCEL_ERROR_MESSAGES[error.message] ?? 'No se pudo cancelar la reserva.');
-            return;
-          }
-          await Promise.all([
-            queryClient.invalidateQueries({ queryKey: ['my-history'] }),
-            queryClient.invalidateQueries({ queryKey: ['classes', 'upcoming'] }),
-          ]);
+          if (error) showAlert('Error', CANCEL_ERROR_MESSAGES[error.message] ?? 'No se pudo cancelar la reserva.');
         },
       },
     ]);
@@ -71,9 +73,29 @@ export default function Profile() {
     <Screen>
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.header}>
-          <View style={styles.avatar}>
-            <Ionicons name={isAdmin ? 'shield-checkmark' : 'person'} size={28} color={colors.onAccent} />
-          </View>
+          <Pressable
+            style={styles.avatar}
+            disabled={changeAvatar.isPending}
+            accessibilityLabel="Cambiar foto de perfil"
+            onPress={() =>
+              changeAvatar.mutate(undefined, { onError: () => showAlert('Error', 'No se pudo actualizar la foto de perfil.') })
+            }
+          >
+            {avatarUrl ? (
+              <Image source={{ uri: avatarUrl }} style={styles.avatarImage} />
+            ) : (
+              <Ionicons name={isAdmin ? 'shield-checkmark' : 'person'} size={28} color={colors.onAccent} />
+            )}
+            {changeAvatar.isPending ? (
+              <View style={styles.avatarOverlay}>
+                <ActivityIndicator size="small" color={colors.onAccent} />
+              </View>
+            ) : (
+              <View style={styles.avatarBadge}>
+                <Ionicons name="camera" size={12} color={colors.ink} />
+              </View>
+            )}
+          </Pressable>
           <View>
             <Text style={styles.name}>{user?.name}</Text>
             <Text style={styles.email}>{user?.email}</Text>
@@ -100,8 +122,10 @@ export default function Profile() {
                 <ProgressBar progress={membership.creditsBalance / membership.creditsPerCycle} />
                 <Text style={styles.membershipRenews}>
                   {membership.status === 'active'
-                    ? `Vence el ${new Date(membership.cycleEnd).toLocaleDateString('es', { day: '2-digit', month: 'long' })}`
-                    : membershipStatusLabel[membership.status]}
+                    ? `Vence el ${formatDay(membership.cycleEnd)}`
+                    : membership.status === 'expired'
+                      ? `Vencida el ${formatDay(membership.cycleEnd)}`
+                      : membershipStatusLabel[membership.status]}
                 </Text>
               </View>
             ) : (
@@ -190,6 +214,21 @@ const styles = StyleSheet.create({
   content: { padding: spacing.xxl, gap: spacing.xl },
   header: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   avatar: { width: 56, height: 56, borderRadius: 28, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
+  avatarImage: { width: 56, height: 56, borderRadius: 28 },
+  avatarOverlay: { ...StyleSheet.absoluteFill, borderRadius: 28, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center' },
+  avatarBadge: {
+    position: 'absolute',
+    right: -2,
+    bottom: -2,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   name: { fontSize: 20, fontWeight: '800', letterSpacing: -0.3, color: colors.ink },
   email: { fontSize: 14, color: colors.inkSoft },
   adminBadge: { backgroundColor: colors.accentSoft, borderRadius: radius.pill, paddingVertical: 2, paddingHorizontal: spacing.sm, alignSelf: 'flex-start', marginTop: spacing.xs },

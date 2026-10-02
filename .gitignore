@@ -3,6 +3,7 @@
 .env
 .env.local
 .env.*.local
+.vercel
 
 # InsForge & AI agent skills
 .insforge

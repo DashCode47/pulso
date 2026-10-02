@@ -8,6 +8,7 @@ import { Screen } from '../../components/Screen';
 import { showAlert } from '../../components/Dialog';
 import { PulseLine } from '../../components/PulseLine';
 import { colors, radius, spacing, type } from '../../theme';
+import { addDays, bogotaDate, bogotaInstant, formatDay, mondayOf } from '../../features/schedule/week';
 
 const statusLabel: Record<backend.AdminClass['status'], string> = {
   scheduled: 'Programada',
@@ -17,20 +18,41 @@ const statusLabel: Record<backend.AdminClass['status'], string> = {
 
 const emptyForm = { title: '', instructorId: '', durationMinutes: '', capacity: '' };
 
+// New classes default to the viewed week's Monday 07:00, or an hour from now
+// if that already passed.
+function defaultStartsAt(weekStart: string) {
+  const monday = bogotaInstant(weekStart, '07:00');
+  return monday.getTime() > Date.now() ? monday : new Date(Date.now() + 60 * 60 * 1000);
+}
+
 export default function Admin() {
   const queryClient = useQueryClient();
+  const today = bogotaDate(new Date());
+  // The schedule is uploaded on Sunday for the week after, so start there.
+  const [weekStart, setWeekStart] = useState(() => addDays(mondayOf(today), 7));
+  const weekEnd = addDays(weekStart, 6);
+
   const { data: classes, isLoading } = useQuery({
-    queryKey: ['admin', 'classes'],
-    queryFn: backend.listAllUpcomingClasses,
+    queryKey: ['admin', 'classes', weekStart],
+    queryFn: () => backend.listClassesBetween(bogotaInstant(weekStart), bogotaInstant(addDays(weekStart, 7))),
   });
   const { data: instructors, refetch: refetchInstructors } = useQuery({
     queryKey: ['admin', 'instructors'],
     queryFn: backend.listInstructors,
   });
+  // Same key as the members' Reservar tab, so publishing refreshes both.
+  const { data: publishedUntil } = useQuery({
+    queryKey: ['classes', 'publishedUntil'],
+    queryFn: backend.getSchedulePublishedUntil,
+  });
+  const weekPublished = publishedUntil ? weekEnd <= publishedUntil : null;
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
-  const [startsAt, setStartsAt] = useState(() => new Date(Date.now() + 60 * 60 * 1000));
+  const [startsAt, setStartsAt] = useState(() => defaultStartsAt(addDays(mondayOf(today), 7)));
+  const [copying, setCopying] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
   const [showPicker, setShowPicker] = useState<'date' | 'time' | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
@@ -41,11 +63,52 @@ export default function Admin() {
   const isEditing = editingId !== null;
   const canSubmit = form.title.trim().length > 0 && form.instructorId.length > 0 && Number(form.durationMinutes) > 0 && Number(form.capacity) > 0;
 
-  function resetForm() {
+  function resetForm(week = weekStart) {
     setEditingId(null);
     setForm(emptyForm);
-    setStartsAt(new Date(Date.now() + 60 * 60 * 1000));
+    setStartsAt(defaultStartsAt(week));
     setFormError(null);
+  }
+
+  function goToWeek(start: string) {
+    setWeekStart(start);
+    setNotice(null);
+    resetForm(start);
+  }
+
+  async function handleCopy() {
+    if (copying) return;
+    setCopying(true);
+    setNotice(null);
+    try {
+      const { copied, error } = await backend.copyPreviousWeek(bogotaInstant(weekStart));
+      if (error) throw error;
+      setNotice(copied ? `Se copiaron ${copied} clase${copied === 1 ? '' : 's'} de la semana anterior.` : 'No había clases nuevas para copiar.');
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'classes'] });
+    } catch {
+      showAlert('Error', 'No se pudo copiar la semana.');
+    } finally {
+      setCopying(false);
+    }
+  }
+
+  function confirmPublish() {
+    showAlert('Publicar semana siguiente', 'Los miembros podrán ver y reservar las clases de la semana siguiente.', [
+      { text: 'No', style: 'cancel' },
+      {
+        text: 'Publicar',
+        onPress: async () => {
+          setPublishing(true);
+          const { error } = await backend.publishNextWeek();
+          setPublishing(false);
+          if (error) {
+            showAlert('Error', 'No se pudo publicar el horario.');
+            return;
+          }
+          await queryClient.invalidateQueries({ queryKey: ['classes'] });
+        },
+      },
+    ]);
   }
 
   function startEditing(c: backend.AdminClass) {
@@ -120,10 +183,53 @@ export default function Admin() {
         <Text style={styles.title}>Admin</Text>
 
         <View style={styles.formCard}>
+          <Text style={styles.fieldLabel}>Visible para miembros</Text>
+          <Text style={styles.classMeta}>
+            {publishedUntil ? `Hasta el ${formatDay(publishedUntil, { weekday: 'long', day: 'numeric', month: 'short' })}` : '…'}. Las
+            semanas siguientes solo las ves tú.
+          </Text>
+          <Pressable style={[styles.submitButton, publishing && styles.submitButtonDisabled]} disabled={publishing} onPress={confirmPublish}>
+            {publishing ? <ActivityIndicator color={colors.onAccent} /> : <Text style={styles.submitButtonText}>Publicar semana siguiente</Text>}
+          </Pressable>
+        </View>
+
+        <View style={styles.weekNav}>
+          <Pressable style={styles.weekArrow} onPress={() => goToWeek(addDays(weekStart, -7))} hitSlop={8}>
+            <Ionicons name="chevron-back" size={18} color={colors.ink} />
+          </Pressable>
+          <View style={{ flex: 1, alignItems: 'center' }}>
+            <Text style={styles.weekLabel}>
+              {formatDay(weekStart, { day: 'numeric', month: 'short' })} – {formatDay(weekEnd, { day: 'numeric', month: 'short' })}
+            </Text>
+            {weekPublished !== null && (
+              <Text style={[styles.classStatus, weekPublished && { color: colors.success }]}>
+                {weekPublished ? 'Publicada' : 'Sin publicar'}
+              </Text>
+            )}
+          </View>
+          <Pressable style={styles.weekArrow} onPress={() => goToWeek(addDays(weekStart, 7))} hitSlop={8}>
+            <Ionicons name="chevron-forward" size={18} color={colors.ink} />
+          </Pressable>
+        </View>
+
+        <Pressable
+          style={[styles.addInstructorButton, styles.copyButton, (copying || weekEnd < today) && styles.submitButtonDisabled]}
+          disabled={copying || weekEnd < today}
+          onPress={handleCopy}
+        >
+          {copying ? (
+            <ActivityIndicator size="small" color={colors.ink} />
+          ) : (
+            <Text style={styles.addInstructorButtonText}>Copiar semana anterior</Text>
+          )}
+        </Pressable>
+        {notice && <Text style={styles.classMeta}>{notice}</Text>}
+
+        <View style={styles.formCard}>
           <View style={styles.formHeader}>
             <Text style={styles.sectionTitle}>{isEditing ? 'Editar clase' : 'Nueva clase'}</Text>
             {isEditing && (
-              <Pressable onPress={resetForm}>
+              <Pressable onPress={() => resetForm()}>
                 <Text style={styles.cancelEditText}>Cancelar edición</Text>
               </Pressable>
             )}
@@ -228,40 +334,47 @@ export default function Admin() {
           </Pressable>
         </View>
 
-        <Text style={styles.sectionTitle}>Próximas clases</Text>
+        <Text style={styles.sectionTitle}>Clases de la semana</Text>
         {isLoading ? (
           <PulseLine style={{ alignSelf: 'center' }} />
         ) : (
           <View style={styles.list}>
-            {(classes ?? []).map((c) => {
+            {(classes ?? []).map((c, i, all) => {
               const isCancelled = c.status === 'cancelled';
+              const day = bogotaDate(c.startsAt);
+              const firstOfDay = i === 0 || bogotaDate(all[i - 1].startsAt) !== day;
               return (
-                <View key={c.id} style={[styles.classRow, editingId === c.id && styles.classRowActive]}>
-                  <Pressable style={{ flex: 1 }} disabled={isCancelled} onPress={() => startEditing(c)}>
-                    <Text style={styles.classTitle}>{c.title}</Text>
-                    <Text style={styles.classMeta}>
-                      {new Date(c.startsAt).toLocaleString('es', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })} ·{' '}
-                      {c.durationMinutes} min · {c.instructorName} · {c.capacity} bicis
+                <View key={c.id} style={styles.list}>
+                  {firstOfDay && (
+                    <Text style={[styles.fieldLabel, i > 0 && styles.dayHeader]}>
+                      {formatDay(day, { weekday: 'long', day: 'numeric', month: 'short' })}
                     </Text>
-                    <Text style={[styles.classStatus, isCancelled && styles.classStatusCancelled]}>{statusLabel[c.status]}</Text>
-                  </Pressable>
-                  {!isCancelled && (
-                    <Pressable
-                      style={styles.cancelIconButton}
-                      disabled={cancellingId === c.id}
-                      onPress={() => confirmCancel(c)}
-                    >
-                      {cancellingId === c.id ? (
-                        <ActivityIndicator size="small" color={colors.danger} />
-                      ) : (
-                        <Ionicons name="trash-outline" size={18} color={colors.danger} />
-                      )}
-                    </Pressable>
                   )}
+                  <View style={[styles.classRow, editingId === c.id && styles.classRowActive]}>
+                    <Pressable style={{ flex: 1 }} disabled={isCancelled} onPress={() => startEditing(c)}>
+                      <Text style={styles.classTitle}>{c.title}</Text>
+                      <Text style={styles.classMeta}>
+                        {new Date(c.startsAt).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })} · {c.durationMinutes} min ·{' '}
+                        {c.instructorName} · {c.capacity} bicis
+                      </Text>
+                      <Text style={[styles.classStatus, isCancelled && styles.classStatusCancelled]}>{statusLabel[c.status]}</Text>
+                    </Pressable>
+                    {!isCancelled && (
+                      <Pressable style={styles.cancelIconButton} disabled={cancellingId === c.id} onPress={() => confirmCancel(c)}>
+                        {cancellingId === c.id ? (
+                          <ActivityIndicator size="small" color={colors.danger} />
+                        ) : (
+                          <Ionicons name="trash-outline" size={18} color={colors.danger} />
+                        )}
+                      </Pressable>
+                    )}
+                  </View>
                 </View>
               );
             })}
-            {classes?.length === 0 && <Text style={styles.emptyText}>No hay clases programadas.</Text>}
+            {classes?.length === 0 && (
+              <Text style={styles.emptyText}>Esta semana no tiene clases. Agrégalas arriba o copia la semana anterior.</Text>
+            )}
           </View>
         )}
       </ScrollView>
@@ -350,5 +463,16 @@ const styles = StyleSheet.create({
   classStatus: { ...type.label, color: colors.inkSoft, marginTop: 4 },
   classStatusCancelled: { color: colors.danger },
   cancelIconButton: { padding: spacing.sm },
+  dayHeader: { marginTop: spacing.md },
+  weekNav: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  weekArrow: {
+    padding: spacing.sm,
+    borderRadius: radius.pill,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  weekLabel: { fontSize: 15, fontWeight: '700', color: colors.ink },
+  copyButton: { paddingVertical: spacing.md },
   emptyText: { color: colors.inkSoft, fontSize: 14 },
 });

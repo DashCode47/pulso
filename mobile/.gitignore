@@ -40,3 +40,8 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# Firebase config (app.json > android.googleServicesFile): kept out of the
+# public repo. Local builds read it from disk; for EAS cloud builds upload it
+# as a file env var (eas env:create --type file) instead.
+google-services.json

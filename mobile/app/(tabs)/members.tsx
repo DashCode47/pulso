@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { View, Text, TextInput, Pressable, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, TextInput, Pressable, ScrollView, StyleSheet, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import * as backend from '../../services/backend';
@@ -29,16 +29,18 @@ function MemberRow({ member }: { member: backend.MemberSummary }) {
   async function handleAdjust(amount: number) {
     if (busy) return;
     setBusy(true);
-    await backend.adjustCredits(member.userId, amount);
+    const { error } = await backend.adjustCredits(member.userId, amount);
     setBusy(false);
+    if (error) return Alert.alert('No se pudo ajustar', error.message === 'negative_balance' ? 'El saldo no puede quedar negativo.' : error.message);
     setAdjustAmount('');
     await queryClient.invalidateQueries({ queryKey: ['admin', 'members'] });
   }
 
   async function handleNoShow(reservationId: string) {
     setBusy(true);
-    await backend.markNoShow(reservationId);
+    const { error } = await backend.markNoShow(reservationId);
     setBusy(false);
+    if (error) return Alert.alert('No se pudo marcar', error.message === 'reservation_not_markable' ? 'Esta reserva ya no se puede marcar.' : error.message);
     await queryClient.invalidateQueries({ queryKey: ['admin', 'member-reservations', member.userId] });
   }
 
@@ -88,7 +90,7 @@ function MemberRow({ member }: { member: backend.MemberSummary }) {
                     {reservationStatusLabel[r.status]}
                   </Text>
                 </View>
-                {r.status === 'booked' && (
+                {(r.status === 'booked' || r.status === 'attended') && (
                   <Pressable style={styles.noShowButton} disabled={busy} onPress={() => handleNoShow(r.id)}>
                     <Text style={styles.noShowButtonText}>Marcar no-show</Text>
                   </Pressable>

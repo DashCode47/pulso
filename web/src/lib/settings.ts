@@ -16,3 +16,17 @@ export async function updateCancellationCutoff(hours: number) {
   const { error } = await supabase.from('studio_settings').update({ cancellation_cutoff_hours: hours }).eq('id', true);
   return { error };
 }
+
+// Members only see/book classes up to this Bogota date ('YYYY-MM-DD', a Sunday).
+export async function getSchedulePublishedUntil(): Promise<string> {
+  const supabase = createClient();
+  const { data, error } = await supabase.from('studio_settings').select('schedule_published_until').eq('id', true).single();
+  if (error) throw error;
+  return data.schedule_published_until;
+}
+
+export async function publishNextWeek(): Promise<{ until: string | null; error: Error | null }> {
+  const supabase = createClient();
+  const { data, error } = await supabase.rpc('admin_publish_next_week');
+  return { until: data, error };
+}

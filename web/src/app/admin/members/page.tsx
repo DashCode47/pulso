@@ -6,19 +6,19 @@ import {
   Membership,
   MembershipInput,
   adjustCredits,
+  cancelMembership,
   createMembership,
   getLatestMembership,
   grantCreditsBulk,
   searchMembers,
-  setMembershipStatus,
   updateMembership,
 } from '@/lib/members';
+import { STUDIO_TZ } from '@/lib/classes';
 import { Badge, Button, EmptyState, ErrorBanner, Input, Label, PageHeader } from '@/components/ui';
 import { useConfirm } from '@/components/confirm-dialog';
 
 const membershipStatusLabel: Record<NonNullable<Member['membershipStatus']>, string> = {
   active: 'Activa',
-  paused: 'Pausada',
   cancelled: 'Cancelada',
   expired: 'Vencida',
 };
@@ -26,7 +26,6 @@ const membershipStatusLabel: Record<NonNullable<Member['membershipStatus']>, str
 const membershipStatusTone: Record<NonNullable<Member['membershipStatus']>, 'mint' | 'coral' | 'neutral'> = {
   active: 'mint',
   expired: 'coral',
-  paused: 'neutral',
   cancelled: 'neutral',
 };
 
@@ -34,7 +33,23 @@ function formatDate(isoDate: string) {
   return new Date(isoDate + 'T00:00:00').toLocaleDateString('es', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
-const emptyForm: MembershipInput = { planName: 'Standard', creditsPerCycle: 10, weeklyGoal: 3 };
+// Studio date as YYYY-MM-DD (en-CA), regardless of the admin's own timezone.
+const today = () => new Date().toLocaleDateString('en-CA', { timeZone: STUDIO_TZ });
+const emptyForm = (): MembershipInput => ({ planName: 'Standard', creditsPerCycle: 10, weeklyGoal: 3, cycleStart: today() });
+// Earliest start whose cycle (start + 1 month - 1 day) hasn't ended yet; the DB
+// enforces the exact rule (cycle_already_over).
+function minCycleStart() {
+  const d = new Date(`${today()}T12:00:00Z`);
+  d.setUTCMonth(d.getUTCMonth() - 1);
+  d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
+
+const dbErrorMessages: Record<string, string> = {
+  cycle_already_over: 'Con esa fecha de inicio la membresía ya habría vencido.',
+  negative_balance: 'El saldo no puede quedar negativo.',
+};
+const describeError = (message: string) => dbErrorMessages[message] ?? message;
 
 export default function MembersPage() {
   const [query, setQuery] = useState('');
@@ -44,7 +59,7 @@ export default function MembersPage() {
 
   const [selected, setSelected] = useState<Member | null>(null);
   const [membership, setMembership] = useState<Membership | null>(null);
-  const [form, setForm] = useState<MembershipInput>(emptyForm);
+  const [form, setForm] = useState<MembershipInput>(emptyForm());
   const [detailLoading, setDetailLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [creditAmount, setCreditAmount] = useState('');
@@ -81,7 +96,13 @@ export default function MembersPage() {
     try {
       const latest = await getLatestMembership(m.userId);
       setMembership(latest);
-      setForm(latest ? { planName: latest.planName, creditsPerCycle: latest.creditsPerCycle, weeklyGoal: latest.weeklyGoal } : emptyForm);
+      // Expired/cancelled: the next cycle defaults to starting today; active: edit the current start.
+      const restarts = !latest || latest.status === 'expired' || latest.status === 'cancelled';
+      setForm(
+        latest
+          ? { planName: latest.planName, creditsPerCycle: latest.creditsPerCycle, weeklyGoal: latest.weeklyGoal, cycleStart: restarts ? today() : latest.cycleStart }
+          : emptyForm(),
+      );
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error al cargar membresía.');
     } finally {
@@ -92,6 +113,9 @@ export default function MembersPage() {
   // A cancelled membership is historical -- assigning again starts a fresh
   // row (like a member re-enrolling) instead of un-cancelling the old one.
   const editableMembership = membership && membership.status !== 'cancelled' ? membership : null;
+  // ponytail: an expired membership is renewed in place (same row) -- the
+  // credit_transactions ledger already keeps one 'grant' per renewal as history.
+  const isExpired = membership?.status === 'expired';
 
   async function handleSaveMembership(e: React.FormEvent) {
     e.preventDefault();
@@ -99,26 +123,53 @@ export default function MembersPage() {
     setSaving(true);
     setError(null);
 
-    const { error } = editableMembership
+    let { error } = editableMembership
       ? await updateMembership(editableMembership.id, form)
       : await createMembership(selected.userId, form);
+    // Save plan changes first so the renewal grants the new plan's credits.
+    if (!error && isExpired) ({ error } = await grantCreditsBulk([selected.userId], form.cycleStart));
     setSaving(false);
     if (error) {
-      setError(error.message);
+      setError(describeError(error.message));
       return;
     }
     modalRef.current?.close();
     refresh(query);
   }
 
-  async function handleSetStatus(status: 'active' | 'paused' | 'cancelled') {
-    if (!editableMembership) return;
-    const { error } = await setMembershipStatus(editableMembership.id, status);
+  async function handleCancelMembership() {
+    if (!editableMembership || !selected) return;
+    const ok = await confirm({
+      title: 'Cancelar membresía',
+      message: `Se cancelarán las reservas futuras de ${selected.fullName} y perderá sus créditos.`,
+      confirmLabel: 'Sí, cancelar',
+    });
+    if (!ok) return;
+    const { error } = await cancelMembership(editableMembership.id);
     if (error) {
-      setError(error.message);
+      setError(describeError(error.message));
       return;
     }
-    setMembership({ ...editableMembership, status });
+    modalRef.current?.close();
+    refresh(query);
+  }
+
+  async function handleRenewOne() {
+    if (!selected) return;
+    const ok = await confirm({
+      title: 'Renovar créditos',
+      message: `¿Renovar a ${selected.fullName} desde hoy? Los créditos no usados se pierden.`,
+      confirmLabel: 'Sí, renovar',
+    });
+    if (!ok) return;
+    setRenewing(true);
+    const { error } = await grantCreditsBulk([selected.userId], today());
+    setRenewing(false);
+    if (error) {
+      setError(describeError(error.message));
+      return;
+    }
+    modalRef.current?.close();
     refresh(query);
   }
 
@@ -127,11 +178,15 @@ export default function MembersPage() {
     if (!selected) return;
     const amount = Number(creditAmount);
     if (!amount) return;
+    if (selected.creditsBalance + amount < 0) {
+      setError(dbErrorMessages.negative_balance);
+      return;
+    }
     setAdjustingCredits(true);
     const { error } = await adjustCredits(selected.userId, amount, creditNote.trim());
     setAdjustingCredits(false);
     if (error) {
-      setError(error.message);
+      setError(describeError(error.message));
       return;
     }
     setCreditAmount('');
@@ -159,15 +214,15 @@ export default function MembersPage() {
     if (checkedIds.size === 0) return;
     const ok = await confirm({
       title: 'Renovar créditos',
-      message: `¿Renovar créditos para ${checkedIds.size} miembro(s)?`,
+      message: `¿Renovar ${checkedIds.size} miembro(s) desde hoy? Los créditos no usados se pierden.`,
       confirmLabel: 'Sí, renovar',
     });
     if (!ok) return;
     setRenewing(true);
-    const { error } = await grantCreditsBulk([...checkedIds]);
+    const { error } = await grantCreditsBulk([...checkedIds], today());
     setRenewing(false);
     if (error) {
-      setError(error.message);
+      setError(describeError(error.message));
       return;
     }
     setCheckedIds(new Set());
@@ -271,16 +326,27 @@ export default function MembersPage() {
             <>
               <form onSubmit={handleSaveMembership} className="space-y-3">
                 <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
-                  {editableMembership ? 'Editar membresía' : 'Asignar membresía'}
+                  {isExpired ? 'Renovar membresía' : editableMembership ? 'Editar membresía' : 'Asignar membresía'}
                 </p>
                 {membership && (
                   <p className="text-xs text-ink-muted">
-                    {membershipStatusLabel[membership.status]} · vence {formatDate(membership.cycleEnd)}
+                    {membershipStatusLabel[membership.status]} · {isExpired ? 'venció' : 'vence'} {formatDate(membership.cycleEnd)}
                   </p>
                 )}
                 <div>
                   <Label htmlFor="plan">Plan</Label>
                   <Input id="plan" required value={form.planName} onChange={(e) => setForm({ ...form, planName: e.target.value })} />
+                </div>
+                <div>
+                  <Label htmlFor="cycleStart">Inicio (dura 1 mes)</Label>
+                  <Input
+                    id="cycleStart"
+                    type="date"
+                    required
+                    min={form.cycleStart === membership?.cycleStart ? undefined : minCycleStart()}
+                    value={form.cycleStart}
+                    onChange={(e) => setForm({ ...form, cycleStart: e.target.value })}
+                  />
                 </div>
                 <div className="flex gap-3">
                   <div className="flex-1">
@@ -309,46 +375,25 @@ export default function MembersPage() {
                 <div className="flex items-center justify-between pt-1">
                   <div className="flex gap-2">
                     <Button type="submit" size="sm" disabled={saving}>
-                      {editableMembership ? 'Guardar cambios' : 'Asignar membresía'}
+                      {isExpired ? 'Renovar membresía' : editableMembership ? 'Guardar cambios' : 'Asignar membresía'}
                     </Button>
-                    {(membership?.status === 'active' || membership?.status === 'expired') && (
+                    {membership?.status === 'active' && (
                       <Button
                         type="button"
                         variant="ghost"
                         size="sm"
                         disabled={renewing}
-                        onClick={async () => {
-                          setRenewing(true);
-                          const { error } = await grantCreditsBulk([selected!.userId]);
-                          setRenewing(false);
-                          if (error) {
-                            setError(error.message);
-                            return;
-                          }
-                          setSelected({ ...selected!, creditsBalance: selected!.creditsBalance + form.creditsPerCycle });
-                          refresh(query);
-                        }}
+                        onClick={handleRenewOne}
                       >
                         Renovar créditos
                       </Button>
                     )}
                   </div>
-                  {editableMembership && (
-                    <div className="flex gap-3 text-xs">
-                      {editableMembership.status !== 'active' && (
-                        <button type="button" onClick={() => handleSetStatus('active')} className="font-medium text-mint hover:underline">
-                          Reactivar
-                        </button>
-                      )}
-                      {editableMembership.status === 'active' && (
-                        <button type="button" onClick={() => handleSetStatus('paused')} className="text-ink-soft hover:text-ink">
-                          Pausar
-                        </button>
-                      )}
-                      <button type="button" onClick={() => handleSetStatus('cancelled')} className="text-coral hover:underline">
-                        Cancelar
-                      </button>
-                    </div>
+                  {/* An expired membership has nothing left to cancel: bookings and credits were already released. */}
+                  {editableMembership && !isExpired && (
+                    <button type="button" onClick={handleCancelMembership} className="text-xs text-coral hover:underline">
+                      Cancelar membresía
+                    </button>
                   )}
                 </div>
               </form>

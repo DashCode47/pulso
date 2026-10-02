@@ -3,6 +3,7 @@
 // that lets a member book or cancel (bookings tab, profile "Mis reservas").
 export const BOOK_ERROR_MESSAGES: Record<string, string> = {
   no_active_membership: 'No tienes una membresía activa.',
+  membership_not_valid_for_class: 'Tu membresía no cubre la fecha de esta clase.',
   class_not_available: 'La clase se llenó o ya no está disponible.',
   class_already_started: 'Esta clase ya comenzó.',
   insufficient_credits: 'No te quedan créditos.',
@@ -15,8 +16,27 @@ export const CANCEL_ERROR_MESSAGES: Record<string, string> = {
   cancellation_window_closed: 'Ya pasó el plazo para cancelar esta clase.',
 };
 
+// Mirrors book_class()/join_waitlist()'s gate (status 'active' and cycle_end
+// not passed) so screens can say why up front instead of failing on tap.
+// Returns null when the member can book; undefined = still loading, don't block.
+export function membershipBlockMessage(
+  membership: { status: string; cycleEnd: string } | null | undefined,
+  today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }), // YYYY-MM-DD, studio date
+): string | null {
+  if (membership === undefined) return null;
+  if (!membership) return 'No tienes una membresía activa. Acércate a recepción para activarla.';
+  if (membership.status === 'cancelled') return 'Tu membresía fue cancelada. Acércate a recepción para activar una nueva.';
+  if (membership.status === 'expired' || membership.cycleEnd < today) {
+    // cycle_end is a plain date: parse as local midnight, not UTC.
+    const day = new Date(membership.cycleEnd + 'T00:00:00').toLocaleDateString('es', { day: 'numeric', month: 'long' });
+    return `Tu membresía venció el ${day}. Renuévala en recepción para seguir reservando.`;
+  }
+  return null;
+}
+
 export const WAITLIST_ERROR_MESSAGES: Record<string, string> = {
   no_active_membership: 'No tienes una membresía activa.',
+  membership_not_valid_for_class: 'Tu membresía no cubre la fecha de esta clase.',
   class_not_available: 'Esta clase ya no está disponible.',
   waitlist_closed: 'La lista de espera ya cerró para esta clase.',
   already_booked: 'Ya tienes una reserva en esta clase.',

@@ -29,10 +29,20 @@ UPDATE profiles SET full_name = 'Carol' WHERE id = '00000000-0000-0000-0000-0000
 
 INSERT INTO admins (user_id) VALUES ('00000000-0000-0000-0000-000000000001');
 
-INSERT INTO memberships (user_id, credits_per_cycle, weekly_goal, cycle_end) VALUES
-  ('00000000-0000-0000-0000-000000000002', 10, 3, current_date + 30),
-  ('00000000-0000-0000-0000-000000000003', 10, 3, current_date + 30),
-  ('00000000-0000-0000-0000-000000000004', 10, 3, current_date + 30);
+-- five members far ahead hold the Top 5 (top_5 achievement), so the test
+-- users' XP doesn't depend on which members the database already has
+INSERT INTO auth.users (id, email, encrypted_password, email_confirmed_at, created_at, updated_at, aud, role)
+SELECT ('00000000-0000-0000-0000-0000000009' || lpad(n::text, 2, '0'))::uuid, 'top' || n || '@test.local', 'x',
+       now(), now(), now(), 'authenticated', 'authenticated'
+FROM generate_series(1, 5) n;
+INSERT INTO memberships (user_id) SELECT id FROM auth.users WHERE email LIKE 'top_@test.local';
+INSERT INTO xp_transactions (user_id, amount, type) SELECT id, 1000000, 'bonus_class' FROM auth.users WHERE email LIKE 'top_@test.local';
+
+-- cycle_start defaults to today (Bogota); cycle_end is derived by trigger
+INSERT INTO memberships (user_id, credits_per_cycle, weekly_goal) VALUES
+  ('00000000-0000-0000-0000-000000000002', 10, 3),
+  ('00000000-0000-0000-0000-000000000003', 10, 3),
+  ('00000000-0000-0000-0000-000000000004', 10, 3);
 
 INSERT INTO credit_transactions (user_id, amount, type) VALUES
   ('00000000-0000-0000-0000-000000000002', 10, 'grant'),
@@ -42,10 +52,12 @@ INSERT INTO credit_transactions (user_id, amount, type) VALUES
 INSERT INTO bikes (label) VALUES ('Bike 01'), ('Bike 02');
 
 INSERT INTO instructors (id, name) VALUES ('00000000-0000-0000-0000-0000000000d1', 'Coach Smoke Test');
-UPDATE studio_settings SET cancellation_cutoff_hours = 12;
+-- publish far ahead so the booking checks below don't depend on the weekday
+UPDATE studio_settings SET cancellation_cutoff_hours = 12, schedule_published_until = current_date + 60;
 
 INSERT INTO classes (id, title, instructor_id, starts_at, duration_minutes, capacity)
-VALUES ('00000000-0000-0000-0000-0000000000c1', 'HIIT', '00000000-0000-0000-0000-0000000000d1', now() + interval '1 day', 45, 2);
+VALUES ('00000000-0000-0000-0000-0000000000c1', 'HIIT', '00000000-0000-0000-0000-0000000000d1', now() + interval '1 day', 45, 2),
+       ('00000000-0000-0000-0000-0000000000c2', 'Late', '00000000-0000-0000-0000-0000000000d1', now() + interval '45 days', 45, 2);
 
 DO $$
 DECLARE
@@ -63,8 +75,18 @@ DECLARE
   v_credits INT;
   v_template UUID;
   v_kept INT;
+  v_unpublished UUID;
 BEGIN
   SET LOCAL ROLE authenticated;
+
+  -- a class after cycle_end is outside the paid period
+  PERFORM set_config('request.jwt.claims', jsonb_build_object('sub', v_alice)::text, true);
+  BEGIN
+    PERFORM book_class('00000000-0000-0000-0000-0000000000c2', v_bike01);
+    RAISE EXCEPTION 'assertion failed: booking past cycle_end should be rejected';
+  EXCEPTION WHEN OTHERS THEN
+    IF sqlerrm <> 'membership_not_valid_for_class' THEN RAISE; END IF;
+  END;
 
   -- book_class enforces the bike-per-class uniqueness constraint
   PERFORM set_config('request.jwt.claims', jsonb_build_object('sub', v_alice)::text, true);
@@ -184,6 +206,34 @@ BEGIN
     RAISE EXCEPTION 'assertion failed: Alice should have 15 credits, got %', v_credits;
   END IF;
 
+  -- renewal: same start date twice is a no-op; a real renewal resets leftovers
+  -- to the plan amount; cancelling zeroes the balance; adjustments can't go negative
+  SET LOCAL ROLE authenticated;
+  PERFORM set_config('request.jwt.claims', jsonb_build_object('sub', v_admin)::text, true);
+  PERFORM admin_grant_credits_bulk(ARRAY[v_alice], studio_today());
+  RESET ROLE;
+  IF (SELECT credits_balance FROM user_stats WHERE user_id = v_alice) <> 15 THEN
+    RAISE EXCEPTION 'assertion failed: renewing to the same start date should be a no-op';
+  END IF;
+  SET LOCAL ROLE authenticated;
+  PERFORM admin_grant_credits_bulk(ARRAY[v_alice], studio_today() - 1);
+  RESET ROLE;
+  IF (SELECT credits_balance FROM user_stats WHERE user_id = v_alice) <> 10 THEN
+    RAISE EXCEPTION 'assertion failed: renewal should reset leftover credits to the plan amount';
+  END IF;
+  SET LOCAL ROLE authenticated;
+  BEGIN
+    PERFORM admin_adjust_credits(v_alice, -11, 'too much');
+    RAISE EXCEPTION 'assertion failed: adjustment below zero should be rejected';
+  EXCEPTION WHEN OTHERS THEN
+    IF sqlerrm <> 'negative_balance' THEN RAISE; END IF;
+  END;
+  PERFORM admin_cancel_membership((SELECT id FROM memberships WHERE user_id = v_alice));
+  RESET ROLE;
+  IF (SELECT credits_balance FROM user_stats WHERE user_id = v_alice) <> 0 THEN
+    RAISE EXCEPTION 'assertion failed: cancelling should zero the balance';
+  END IF;
+
   -- templates: saving generates classes now; editing rebuilds unbooked ones and keeps booked ones
   SET LOCAL ROLE authenticated;
   PERFORM set_config('request.jwt.claims', jsonb_build_object('sub', v_admin)::text, true);
@@ -218,6 +268,24 @@ BEGIN
     RAISE EXCEPTION 'assertion failed: direct template updates should be blocked';
   EXCEPTION WHEN insufficient_privilege THEN NULL;
   END;
+
+  -- unpublished weeks are hidden from members and can't be booked
+  UPDATE studio_settings SET schedule_published_until = current_date - 30;
+  SELECT id INTO v_unpublished FROM classes WHERE template_id = v_template AND status = 'scheduled';
+  PERFORM set_config('request.jwt.claims', jsonb_build_object('sub', v_carol)::text, true);
+  IF EXISTS (SELECT 1 FROM classes WHERE starts_at > now()) THEN
+    RAISE EXCEPTION 'assertion failed: members should not see unpublished classes';
+  END IF;
+  BEGIN
+    PERFORM book_class(v_unpublished, v_bike02);
+    RAISE EXCEPTION 'assertion failed: booking an unpublished class should fail';
+  EXCEPTION WHEN raise_exception THEN
+    IF SQLERRM <> 'class_not_available' THEN RAISE; END IF;
+  END;
+  PERFORM set_config('request.jwt.claims', jsonb_build_object('sub', v_admin)::text, true);
+  IF extract(dow from admin_publish_next_week()) <> 0 OR NOT EXISTS (SELECT 1 FROM classes WHERE starts_at > now()) THEN
+    RAISE EXCEPTION 'assertion failed: publishing should open up to a Sunday and admins always see every class';
+  END IF;
   RESET ROLE;
 
   -- scheduled job functions run cleanly with no matching rows
