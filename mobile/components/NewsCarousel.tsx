@@ -1,5 +1,6 @@
 import { useRef } from 'react';
-import { View, Text, Image, Pressable, Animated, StyleSheet, useWindowDimensions } from 'react-native';
+import { View, Text, Pressable, Animated, StyleSheet, useWindowDimensions } from 'react-native';
+import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import type { NewsItem } from '../services/backend';
 import { colors, radius, spacing, type } from '../theme';
@@ -38,7 +39,7 @@ export function NewsCarousel({ items }: { items: NewsItem[] }) {
             accessibilityRole="button"
             accessibilityLabel={`${item.title}. ${item.subtitle}`}
           >
-            <Image source={{ uri: item.image }} style={StyleSheet.absoluteFill} />
+            <Image source={{ uri: item.image }} style={StyleSheet.absoluteFill} cachePolicy="memory-disk" />
             <View style={styles.scrim} />
             <View style={styles.tag}>
               <Text style={styles.tagText}>{item.tag}</Text>

@@ -13,7 +13,7 @@
     "android": {
       "package": "com.pulso.ec",
       "googleServicesFile": "./google-services.json",
-      "versionCode": 2,
+      "versionCode": 3,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -39,7 +39,8 @@
         }
       ],
       "@react-native-community/datetimepicker",
-      "./plugins/withReleaseSigning"
+      "./plugins/withReleaseSigning",
+      "expo-image"
     ],
     "extra": {
       "router": {},

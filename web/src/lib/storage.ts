@@ -46,7 +46,8 @@ export async function uploadNewsImage(file: File): Promise<{ url: string | null;
 
   const { error } = await supabase.storage
     .from(NEWS_IMAGES_BUCKET)
-    .upload(path, image, { cacheControl: '3600', contentType: image.type || file.type });
+    // random file name, never overwritten: safe to cache for a year
+    .upload(path, image, { cacheControl: String(365 * 24 * 60 * 60), contentType: image.type || file.type });
   if (error) return { url: null, error };
 
   const { data } = supabase.storage.from(NEWS_IMAGES_BUCKET).getPublicUrl(path);

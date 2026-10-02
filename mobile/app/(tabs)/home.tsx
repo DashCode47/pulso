@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
-import { View, Text, Image, Pressable, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
+import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
@@ -133,7 +134,7 @@ function MemberHome() {
           </View>
           <Pressable style={styles.avatar} onPress={() => router.push('/(tabs)/profile')} accessibilityLabel="Perfil">
             {avatarUrl ? (
-              <Image source={{ uri: avatarUrl }} style={styles.avatarImage} />
+              <Image source={{ uri: avatarUrl }} style={styles.avatarImage} cachePolicy="memory-disk" />
             ) : (
               <Text style={styles.avatarText}>{firstName.charAt(0).toUpperCase()}</Text>
             )}

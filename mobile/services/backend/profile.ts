@@ -53,21 +53,32 @@ export async function getMyAvatarUrl(): Promise<string | null> {
   return data?.avatar_url ?? null;
 }
 
-// Fixed path per user (upsert) so old photos don't pile up in the bucket;
-// the ?t= suffix busts Image caches since the URL would otherwise not change.
+// A new file name per upload (never overwritten), so phones and the CDN can
+// cache each URL for a year: a new photo is simply a new URL. The previous
+// file is deleted afterwards so old photos don't pile up in the bucket.
+const AVATAR_CACHE_SECONDS = String(365 * 24 * 60 * 60);
+
 export async function uploadMyAvatar(uri: string, contentType: string): Promise<string> {
   const userId = await currentUserId();
   if (!userId) throw new Error('Usuario no autenticado');
 
+  const bucket = backend.storage.from('avatars');
   const body = await fetch(uri).then((r) => r.arrayBuffer());
-  const path = `${userId}/avatar`;
-  const { error: uploadError } = await backend.storage.from('avatars').upload(path, body, { contentType, upsert: true });
+  const fileName = `${Date.now()}.jpg`;
+  const { error: uploadError } = await bucket.upload(`${userId}/${fileName}`, body, {
+    contentType,
+    cacheControl: AVATAR_CACHE_SECONDS,
+  });
   if (uploadError) throw uploadError;
 
-  const { data } = backend.storage.from('avatars').getPublicUrl(path);
-  const url = `${data.publicUrl}?t=${Date.now()}`;
+  const url = bucket.getPublicUrl(`${userId}/${fileName}`).data.publicUrl;
   const { error } = await backend.from('profiles').update({ avatar_url: url }).eq('id', userId);
   if (error) throw error;
+
+  // Best effort: a leftover file only costs a few KB of storage.
+  const { data: files } = await bucket.list(userId);
+  const old = (files ?? []).filter((f) => f.name !== fileName).map((f) => `${userId}/${f.name}`);
+  if (old.length) await bucket.remove(old);
   return url;
 }
 

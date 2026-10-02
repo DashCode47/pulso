@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
-import { View, Text, Pressable, ScrollView, Image, Animated, Easing, AccessibilityInfo, StyleSheet } from 'react-native';
+import { View, Text, Pressable, ScrollView, Animated, Easing, AccessibilityInfo, StyleSheet } from 'react-native';
+import { Image } from 'expo-image';
 import { useQuery } from '@tanstack/react-query';
 import { getLeaderboard, type LeaderboardEntry as BaseEntry } from '../../services/backend';
 import { useAuthStore } from '../../features/auth/store';
@@ -20,7 +21,7 @@ const medalColors = ['#F5C451', '#D0D5DD', '#D8955B']; // oro, plata, bronce
 function Avatar({ entry, size }: { entry: LeaderboardEntry; size: number }) {
   const style = { width: size, height: size, borderRadius: size / 2 };
   return entry.avatarUrl ? (
-    <Image source={{ uri: entry.avatarUrl }} style={[styles.avatar, style]} />
+    <Image source={{ uri: entry.avatarUrl }} style={[styles.avatar, style]} cachePolicy="memory-disk" />
   ) : (
     <View style={[styles.avatar, style]}>
       <Text style={[styles.avatarText, { fontSize: size * 0.4 }]}>{entry.name.charAt(0).toUpperCase()}</Text>
