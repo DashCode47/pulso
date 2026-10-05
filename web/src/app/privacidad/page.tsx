@@ -29,10 +29,10 @@ export default function PrivacyPage() {
 
         <h2>Permisos del dispositivo</h2>
         <ul>
-          <li><strong>Fotos / cámara:</strong> solo para elegir o tomar tu foto de perfil, cuando tú lo solicitas.</li>
+          <li><strong>Fotos:</strong> solo para elegir tu foto de perfil de la galería, cuando tú lo solicitas.</li>
           <li><strong>Notificaciones:</strong> para avisos de clases, reservas y novedades del gimnasio.</li>
         </ul>
-        <p>No accedemos a tu ubicación, contactos ni grabamos audio.</p>
+        <p>No accedemos a tu cámara, micrófono, ubicación ni contactos.</p>
 
         <h2>Cómo usamos tus datos</h2>
         <ul>

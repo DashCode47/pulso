@@ -3,7 +3,7 @@ import { View, Text, Pressable, Animated, StyleSheet, useWindowDimensions } from
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import type { NewsItem } from '../services/backend';
-import { colors, radius, spacing, type } from '../theme';
+import { colors, radius, spacing, type, themed } from '../theme';
 
 const GUTTER = spacing.xxl;
 const GAP = spacing.md;
@@ -77,7 +77,7 @@ export function NewsCarousel({ items }: { items: NewsItem[] }) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themed(() => StyleSheet.create({
   root: { marginHorizontal: -GUTTER },
   card: {
     height: 210,
@@ -93,15 +93,16 @@ const styles = StyleSheet.create({
     // El borde va aquí (encima de la imagen) para que las fotos oscuras no se fundan con el fondo.
     borderRadius: radius.lg,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(245,243,238,0.14)',
-    experimental_backgroundImage: 'linear-gradient(180deg, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.2) 40%, rgba(0,0,0,0.88) 100%)',
+    borderColor: `rgba(${colors.inkRgb},0.14)`,
+    // Funde la foto hacia el fondo del tema para que el texto (ink) siempre se lea.
+    experimental_backgroundImage: `linear-gradient(180deg, rgba(${colors.bgRgb},0.1) 0%, rgba(${colors.bgRgb},0.2) 40%, rgba(${colors.bgRgb},0.9) 100%)`,
   },
   tag: {
     alignSelf: 'flex-start',
     borderRadius: radius.pill,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(245,243,238,0.4)',
-    backgroundColor: 'rgba(0,0,0,0.35)',
+    borderColor: `rgba(${colors.inkRgb},0.4)`,
+    backgroundColor: `rgba(${colors.bgRgb},0.5)`,
     paddingVertical: 5,
     paddingHorizontal: spacing.md,
   },
@@ -111,4 +112,4 @@ const styles = StyleSheet.create({
   subtitle: { fontSize: 13, lineHeight: 18, color: colors.inkSoft },
   dots: { flexDirection: 'row', justifyContent: 'center', gap: 6, marginTop: spacing.md },
   dot: { height: 6, borderRadius: 3, backgroundColor: colors.ink },
-});
+}));

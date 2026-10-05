@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { View, Text, TextInput, Pressable, ScrollView, ActivityIndicator, Platform, StyleSheet } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { CaretLeftIcon, CaretRightIcon, TrashIcon } from '../../components/icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as backend from '../../services/backend';
 import { Screen } from '../../components/Screen';
 import { showAlert } from '../../components/Dialog';
 import { PulseLine } from '../../components/PulseLine';
-import { colors, radius, spacing, type } from '../../theme';
+import { colors, radius, spacing, type, themed, useThemeMode } from '../../theme';
 import { addDays, bogotaDate, bogotaInstant, formatDay, mondayOf } from '../../features/schedule/week';
 
 const statusLabel: Record<backend.AdminClass['status'], string> = {
@@ -26,6 +26,7 @@ function defaultStartsAt(weekStart: string) {
 }
 
 export default function Admin() {
+  const mode = useThemeMode((s) => s.mode);
   const queryClient = useQueryClient();
   const today = bogotaDate(new Date());
   // The schedule is uploaded on Sunday for the week after, so start there.
@@ -195,7 +196,7 @@ export default function Admin() {
 
         <View style={styles.weekNav}>
           <Pressable style={styles.weekArrow} onPress={() => goToWeek(addDays(weekStart, -7))} hitSlop={8}>
-            <Ionicons name="chevron-back" size={18} color={colors.ink} />
+            <CaretLeftIcon size={18} color={colors.ink} weight="bold" />
           </Pressable>
           <View style={{ flex: 1, alignItems: 'center' }}>
             <Text style={styles.weekLabel}>
@@ -208,7 +209,7 @@ export default function Admin() {
             )}
           </View>
           <Pressable style={styles.weekArrow} onPress={() => goToWeek(addDays(weekStart, 7))} hitSlop={8}>
-            <Ionicons name="chevron-forward" size={18} color={colors.ink} />
+            <CaretRightIcon size={18} color={colors.ink} weight="bold" />
           </Pressable>
         </View>
 
@@ -290,7 +291,7 @@ export default function Admin() {
               mode={showPicker}
               is24Hour
               // iOS lo dibuja inline: sin esto, con el teléfono en modo claro el texto sale negro sobre negro.
-              themeVariant="dark"
+              themeVariant={mode}
               accentColor={colors.ink}
               onChange={(_event, selected) => {
                 setShowPicker(Platform.OS === 'ios' ? showPicker : null);
@@ -364,7 +365,7 @@ export default function Admin() {
                         {cancellingId === c.id ? (
                           <ActivityIndicator size="small" color={colors.danger} />
                         ) : (
-                          <Ionicons name="trash-outline" size={18} color={colors.danger} />
+                          <TrashIcon size={18} color={colors.danger} />
                         )}
                       </Pressable>
                     )}
@@ -382,7 +383,7 @@ export default function Admin() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themed(() => StyleSheet.create({
   content: { padding: spacing.xxl, gap: spacing.xl },
   title: { ...type.title, color: colors.ink },
   sectionTitle: { ...type.h2, color: colors.ink },
@@ -475,4 +476,4 @@ const styles = StyleSheet.create({
   weekLabel: { fontSize: 15, fontWeight: '700', color: colors.ink },
   copyButton: { paddingVertical: spacing.md },
   emptyText: { color: colors.inkSoft, fontSize: 14 },
-});
+}));

@@ -1,9 +1,9 @@
-import { useState } from 'react';
-import { View, Text, Pressable, ActivityIndicator, StyleSheet } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { useState, type ReactNode } from 'react';
+import { View, Text, Pressable, ActivityIndicator, LayoutAnimation, StyleSheet, type ViewStyle } from 'react-native';
+import { CaretDownIcon, CaretUpIcon, CheckIcon, ClockIcon, HourglassIcon, LockIcon, UserIcon, UsersThreeIcon, WarningCircleIcon, XCircleIcon, type Icon } from './icons';
 import type { ClassWithBikes } from '../features/bookings/useBookings';
 import { BikeGrid } from './BikeGrid';
-import { colors, radius, spacing, type } from '../theme';
+import { colors, radius, spacing, type, themed } from '../theme';
 
 interface Props {
   classInfo: ClassWithBikes;
@@ -30,6 +30,7 @@ export function ClassCard({ classInfo, busy, locked, onBook, onCancel, onJoinWai
   const spotsLeft = Math.max(0, classInfo.capacity - classInfo.bookedCount);
   const availableCount = bookedBikeId ? freeBikes.length : Math.min(freeBikes.length, spotsLeft);
   const isFull = availableCount === 0 && !bookedBikeId;
+  const occupancy = classInfo.capacity ? Math.min(1, classInfo.bookedCount / classInfo.capacity) : 1;
 
   // Once the class capacity (not the physical bike count) is the limiting
   // factor, grey out the extra free bikes too -- picking one would just get
@@ -40,102 +41,143 @@ export function ClassCard({ classInfo, busy, locked, onBook, onCancel, onJoinWai
     : classInfo.bikes;
   // A refetch may reveal someone else took the bike we picked -- drop it.
   const selectedBikeId = bikesForGrid.some((b) => b.id === pickedBikeId && !b.taken) ? pickedBikeId : null;
+  const showGrid = !isFull && !(locked && !bookedBikeId);
+
+  const toggle = () => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setExpanded((e) => !e);
+  };
 
   return (
     <View style={[styles.card, !!bookedBikeId && styles.cardBooked]}>
-      <Pressable onPress={() => setExpanded((e) => !e)} style={styles.header}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.title}>{classInfo.title}</Text>
-          <Text style={styles.meta}>
-            {new Date(classInfo.startsAt).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })} ·{' '}
-            {classInfo.durationMinutes} min · {classInfo.instructorName}
+      <Pressable onPress={toggle} style={({ pressed }) => [styles.header, pressed && styles.headerPressed]}>
+        <View style={styles.timeCol}>
+          <Text style={styles.time}>
+            {new Date(classInfo.startsAt).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })}
           </Text>
+          <Text style={styles.duration}>{classInfo.durationMinutes} min</Text>
         </View>
-        <View style={styles.headerRight}>
-          {bookedBikeId ? (
-            <View style={styles.bookedBadge}>
-              <Ionicons name="checkmark-circle" size={14} color={colors.onAccent} />
-              <Text style={styles.bookedBadgeText}>Reservado</Text>
+
+        <View style={styles.divider} />
+
+        <View style={styles.info}>
+          <View style={styles.titleRow}>
+            <Text style={styles.title} numberOfLines={1}>
+              {classInfo.title}
+            </Text>
+            {bookedBikeId ? (
+              <View style={[styles.badge, styles.badgeBooked]}>
+                <CheckIcon size={12} color={colors.onAccent} weight="bold" />
+                <Text style={[styles.badgeText, { color: colors.onAccent }]}>Reservado</Text>
+              </View>
+            ) : myWaitlistEntryId ? (
+              <View style={[styles.badge, styles.badgeOutline]}>
+                <Text style={[styles.badgeText, { color: colors.ink }]}>En espera #{myWaitlistPosition}</Text>
+              </View>
+            ) : isFull ? (
+              <View style={[styles.badge, { backgroundColor: colors.dangerSoft }]}>
+                <Text style={[styles.badgeText, { color: colors.danger }]}>Completa</Text>
+              </View>
+            ) : null}
+          </View>
+
+          <View style={styles.instructorRow}>
+            <UserIcon size={12} color={colors.inkMuted} />
+            <Text style={styles.instructor} numberOfLines={1}>
+              {classInfo.instructorName}
+            </Text>
+          </View>
+
+          <View style={styles.capacityRow}>
+            <View style={styles.track}>
+              <View style={[styles.fill, { width: `${occupancy * 100}%` }, isFull && styles.fillFull]} />
             </View>
-          ) : myWaitlistEntryId ? (
-            <View style={styles.fullBadge}>
-              <Text style={styles.fullBadgeText}>En espera #{myWaitlistPosition}</Text>
-            </View>
-          ) : (
-            <View style={isFull ? styles.fullBadge : styles.availableBadge}>
-              <Text style={isFull ? styles.fullBadgeText : styles.availableBadgeText}>
-                {isFull ? 'Completa' : `${availableCount} libres`}
-              </Text>
-            </View>
-          )}
-          <Ionicons
-            name={expanded ? 'chevron-up' : 'chevron-down'}
-            size={18}
-            color={colors.inkMuted}
-            style={styles.chevron}
-          />
+            <Text style={styles.capacityText}>
+              {isFull ? 'Sin cupos' : `${availableCount} ${availableCount === 1 ? 'libre' : 'libres'}`}
+            </Text>
+            {expanded ? <CaretUpIcon size={16} color={colors.inkMuted} weight="bold" /> : <CaretDownIcon size={16} color={colors.inkMuted} weight="bold" />}
+          </View>
         </View>
       </Pressable>
 
       {expanded && (
         <View style={styles.body}>
-          {!isFull && !(locked && !bookedBikeId) && (
-            <BikeGrid
-              bikes={bikesForGrid}
-              selectedBikeId={selectedBikeId}
-              bookedBikeId={bookedBikeId}
-              onSelect={(bikeId) => !bookedBikeId && setPickedBikeId(bikeId)}
-            />
+          {showGrid && (
+            <>
+              <View style={styles.legend}>
+                <LegendItem swatch={styles.swatchFree} label="Libre" />
+                <LegendItem swatch={styles.swatchTaken} label="Ocupada" />
+                <LegendItem swatch={styles.swatchMine} label={bookedBikeId ? 'Tuya' : 'Elegida'} />
+              </View>
+              <BikeGrid
+                bikes={bikesForGrid}
+                selectedBikeId={selectedBikeId}
+                bookedBikeId={bookedBikeId}
+                onSelect={(bikeId) => !bookedBikeId && setPickedBikeId(bikeId)}
+              />
+            </>
           )}
 
           {myReservationId ? (
             <>
-              <Text style={styles.note}>
+              <Note icon={beforeDeadline ? ClockIcon : WarningCircleIcon}>
                 {beforeDeadline
                   ? `Puedes cancelar hasta el ${formatDeadline(classInfo.cancelDeadline)}.`
                   : 'Ya pasó el plazo para cancelar esta clase.'}
-              </Text>
+              </Note>
               {beforeDeadline && (
-                <Pressable style={styles.cancelButton} disabled={busy} onPress={() => onCancel(classInfo.id, myReservationId)}>
-                  {busy ? <ActivityIndicator color={colors.danger} /> : <Text style={styles.cancelButtonText}>Cancelar reserva</Text>}
+                <Pressable
+                  style={({ pressed }) => [styles.button, styles.buttonGhost, pressed && styles.pressed]}
+                  disabled={busy}
+                  onPress={() => onCancel(classInfo.id, myReservationId)}
+                >
+                  {busy ? <ActivityIndicator color={colors.danger} /> : <Text style={styles.buttonGhostText}>Cancelar reserva</Text>}
                 </Pressable>
               )}
             </>
           ) : myWaitlistEntryId ? (
             <>
-              <Text style={styles.note}>
+              <Note icon={HourglassIcon}>
                 Estás #{myWaitlistPosition} en la lista de espera. Si se libera un cupo te reservamos automáticamente y se
                 descuenta 1 crédito.
-              </Text>
-              <Pressable style={styles.cancelButton} disabled={busy} onPress={() => onLeaveWaitlist(classInfo.id, myWaitlistEntryId)}>
-                {busy ? <ActivityIndicator color={colors.danger} /> : <Text style={styles.cancelButtonText}>Salir de la lista</Text>}
+              </Note>
+              <Pressable
+                style={({ pressed }) => [styles.button, styles.buttonGhost, pressed && styles.pressed]}
+                disabled={busy}
+                onPress={() => onLeaveWaitlist(classInfo.id, myWaitlistEntryId)}
+              >
+                {busy ? <ActivityIndicator color={colors.danger} /> : <Text style={styles.buttonGhostText}>Salir de la lista</Text>}
               </Pressable>
             </>
           ) : locked ? (
-            <View style={styles.lockedNote}>
-              <Ionicons name="lock-closed" size={14} color={colors.inkSoft} />
-              <Text style={styles.note}>Necesitas una membresía activa para reservar esta clase.</Text>
-            </View>
+            <Note icon={LockIcon}>Necesitas una membresía activa para reservar esta clase.</Note>
           ) : isFull ? (
             beforeDeadline ? (
-              <Pressable style={styles.bookButton} disabled={busy} onPress={() => onJoinWaitlist(classInfo.id)}>
-                {busy ? <ActivityIndicator color={colors.onAccent} /> : <Text style={styles.bookButtonText}>Unirme a la lista de espera</Text>}
-              </Pressable>
+              <>
+                <Note icon={UsersThreeIcon}>Clase completa. Únete a la lista y te reservamos si se libera un cupo.</Note>
+                <Pressable
+                  style={({ pressed }) => [styles.button, pressed && styles.pressed]}
+                  disabled={busy}
+                  onPress={() => onJoinWaitlist(classInfo.id)}
+                >
+                  {busy ? <ActivityIndicator color={colors.onAccent} /> : <Text style={styles.buttonText}>Unirme a la lista de espera</Text>}
+                </Pressable>
+              </>
             ) : (
-              <Text style={styles.note}>Clase completa. La lista de espera ya cerró.</Text>
+              <Note icon={XCircleIcon}>Clase completa. La lista de espera ya cerró.</Note>
             )
           ) : (
             <>
-              {!beforeDeadline && <Text style={styles.note}>Si reservas ahora ya no podrás cancelar.</Text>}
+              {!beforeDeadline && <Note icon={WarningCircleIcon}>Si reservas ahora ya no podrás cancelar.</Note>}
               <Pressable
-                style={[styles.bookButton, !selectedBikeId && styles.bookButtonDisabled]}
+                style={({ pressed }) => [styles.button, !selectedBikeId && styles.buttonDisabled, pressed && styles.pressed]}
                 disabled={!selectedBikeId || busy}
                 onPress={() => selectedBikeId && onBook(classInfo.id, selectedBikeId)}
               >
                 {busy ? (
                   <ActivityIndicator color={colors.onAccent} />
                 ) : (
-                  <Text style={styles.bookButtonText}>
+                  <Text style={[styles.buttonText, !selectedBikeId && styles.buttonTextDisabled]}>
                     {selectedBikeId ? `Reservar ${classInfo.bikes.find((b) => b.id === selectedBikeId)?.label}` : 'Elige una bici'}
                   </Text>
                 )}
@@ -148,7 +190,25 @@ export function ClassCard({ classInfo, busy, locked, onBook, onCancel, onJoinWai
   );
 }
 
-const styles = StyleSheet.create({
+function Note({ icon: I, children }: { icon: Icon; children: ReactNode }) {
+  return (
+    <View style={styles.note}>
+      <I size={14} color={colors.inkSoft} style={{ marginTop: 2 }} />
+      <Text style={styles.noteText}>{children}</Text>
+    </View>
+  );
+}
+
+function LegendItem({ swatch, label }: { swatch: ViewStyle; label: string }) {
+  return (
+    <View style={styles.legendItem}>
+      <View style={[styles.swatch, swatch]} />
+      <Text style={styles.legendText}>{label}</Text>
+    </View>
+  );
+}
+
+const styles = themed(() => StyleSheet.create({
   card: {
     borderRadius: radius.lg,
     backgroundColor: colors.surface,
@@ -157,31 +217,66 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   cardBooked: { borderWidth: 1, borderColor: colors.accent },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: spacing.lg, gap: spacing.sm },
-  title: { ...type.h2, color: colors.ink },
-  meta: { ...type.caption, color: colors.inkSoft, marginTop: 2 },
-  headerRight: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  chevron: { marginLeft: 2 },
-  availableBadge: { backgroundColor: colors.successSoft, borderRadius: radius.pill, paddingVertical: 4, paddingHorizontal: spacing.sm },
-  availableBadgeText: { color: colors.success, fontWeight: '700', fontSize: 12 },
-  fullBadge: { backgroundColor: colors.dangerSoft, borderRadius: radius.pill, paddingVertical: 4, paddingHorizontal: spacing.sm },
-  fullBadgeText: { color: colors.danger, fontWeight: '700', fontSize: 12 },
-  bookedBadge: {
+  header: { flexDirection: 'row', alignItems: 'center', padding: spacing.lg, gap: spacing.lg },
+  headerPressed: { backgroundColor: colors.surfaceAlt },
+
+  timeCol: { width: 52 },
+  time: { fontSize: 17, fontWeight: '800', letterSpacing: -0.4, color: colors.ink, fontVariant: ['tabular-nums'] },
+  duration: { ...type.caption, color: colors.inkMuted, marginTop: 2 },
+  divider: { width: StyleSheet.hairlineWidth, alignSelf: 'stretch', backgroundColor: colors.border },
+
+  info: { flex: 1, gap: 4 },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  title: { ...type.h2, color: colors.ink, flexShrink: 1, marginRight: 'auto' },
+  instructorRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  instructor: { ...type.caption, color: colors.inkSoft, flexShrink: 1 },
+
+  capacityRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.xs },
+  track: { flex: 1, height: 3, borderRadius: 2, backgroundColor: colors.surfaceAlt, overflow: 'hidden' },
+  fill: { height: '100%', backgroundColor: colors.inkSoft, borderRadius: 2 },
+  fillFull: { backgroundColor: colors.danger },
+  capacityText: { ...type.caption, color: colors.inkSoft, fontVariant: ['tabular-nums'] },
+
+  badge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    backgroundColor: colors.accent,
+    gap: 3,
     borderRadius: radius.pill,
-    paddingVertical: 4,
+    paddingVertical: 3,
     paddingHorizontal: spacing.sm,
   },
-  bookedBadgeText: { color: colors.onAccent, fontWeight: '700', fontSize: 12 },
-  body: { paddingHorizontal: spacing.lg, paddingBottom: spacing.lg, gap: spacing.md },
-  note: { ...type.caption, color: colors.inkSoft },
-  lockedNote: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
-  bookButton: { backgroundColor: colors.accent, borderRadius: radius.pill, padding: spacing.md + 2, alignItems: 'center' },
-  bookButtonDisabled: { opacity: 0.3 },
-  bookButtonText: { color: colors.onAccent, fontWeight: '700' },
-  cancelButton: { borderRadius: radius.pill, padding: spacing.md + 2, alignItems: 'center', borderWidth: 1, borderColor: colors.danger },
-  cancelButtonText: { color: colors.danger, fontWeight: '600' },
-});
+  badgeBooked: { backgroundColor: colors.accent },
+  badgeOutline: { borderWidth: StyleSheet.hairlineWidth, borderColor: colors.inkSoft },
+  badgeText: { fontSize: 11, fontWeight: '700', letterSpacing: 0.2 },
+
+  body: {
+    padding: spacing.lg,
+    gap: spacing.lg,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
+  },
+  legend: { flexDirection: 'row', gap: spacing.lg },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  legendText: { ...type.caption, color: colors.inkMuted },
+  swatch: { width: 10, height: 10, borderRadius: 3 },
+  swatchFree: { borderWidth: 1, borderColor: colors.inkMuted },
+  swatchTaken: { backgroundColor: colors.surfaceAlt },
+  swatchMine: { backgroundColor: colors.accent },
+
+  note: { flexDirection: 'row', gap: spacing.sm },
+  noteText: { ...type.caption, lineHeight: 18, color: colors.inkSoft, flex: 1 },
+
+  button: {
+    backgroundColor: colors.accent,
+    borderRadius: radius.pill,
+    minHeight: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  buttonDisabled: { backgroundColor: colors.surfaceAlt },
+  buttonText: { color: colors.onAccent, fontWeight: '700', fontSize: 15 },
+  buttonTextDisabled: { color: colors.inkMuted },
+  buttonGhost: { backgroundColor: 'transparent', borderWidth: 1, borderColor: colors.dangerSoft },
+  buttonGhostText: { color: colors.danger, fontWeight: '600', fontSize: 15 },
+  pressed: { transform: [{ scale: 0.98 }], opacity: 0.9 },
+}));

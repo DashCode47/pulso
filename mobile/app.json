@@ -2,6 +2,7 @@
   "expo": {
     "name": "Pulso",
     "slug": "pulso",
+    "scheme": "pulso",
     "owner": "code-for-all",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -13,34 +14,35 @@
     "android": {
       "package": "com.pulso.ec",
       "googleServicesFile": "./google-services.json",
-      "versionCode": 3,
+      "versionCode": 4,
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
+        "backgroundColor": "#000000",
+        "foregroundImage": "./assets/android-icon-foreground.png"
       },
-      "predictiveBackGestureEnabled": false,
-      "permissions": [
-        "android.permission.RECORD_AUDIO"
-      ]
-    },
-    "web": {
-      "favicon": "./assets/favicon.png"
+      "predictiveBackGestureEnabled": false
     },
     "plugins": [
       "expo-router",
       "expo-secure-store",
-      "expo-notifications",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#F5C518"
+        }
+      ],
       [
         "expo-image-picker",
         {
-          "photosPermission": "Pulso necesita acceso a tus fotos para cambiar tu foto de perfil."
+          "photosPermission": "Pulso necesita acceso a tus fotos para cambiar tu foto de perfil.",
+          "cameraPermission": false,
+          "microphonePermission": false
         }
       ],
       "@react-native-community/datetimepicker",
       "./plugins/withReleaseSigning",
-      "expo-image"
+      "expo-image",
+      ["@sentry/react-native", { "url": "https://sentry.io/", "organization": "code-for-all", "project": "pulso-tracking" }]
     ],
     "extra": {
       "router": {},

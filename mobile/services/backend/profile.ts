@@ -89,21 +89,30 @@ export type MyHistoryEntry = {
   status: 'booked' | 'cancelled' | 'attended' | 'no_show';
 };
 
-export async function listMyHistory(): Promise<MyHistoryEntry[]> {
+export const HISTORY_PAGE_SIZE = 10;
+
+// upcoming: every active booking, soonest first. past: one page of everything
+// else, newest first (pages are 0-based).
+export async function listMyHistory(kind: 'upcoming' | 'past', page = 0): Promise<MyHistoryEntry[]> {
   const userId = await currentUserId();
   if (!userId) return [];
 
   // One request: the class comes embedded instead of a second lookup.
-  const { data, error } = await backend
-    .from('reservations')
-    .select('id, status, classes(title, starts_at)')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false })
-    .limit(20);
+  let query = backend.from('reservations').select('id, status, classes(title, starts_at)').eq('user_id', userId);
+  query =
+    kind === 'upcoming'
+      ? query.eq('status', 'booked')
+      : query
+          .neq('status', 'booked')
+          .order('created_at', { ascending: false })
+          .range(page * HISTORY_PAGE_SIZE, (page + 1) * HISTORY_PAGE_SIZE - 1);
+  const { data, error } = await query;
   if (error) throw error;
 
-  return (data ?? []).map((r) => {
+  const entries: MyHistoryEntry[] = (data ?? []).map((r) => {
     const c = firstEmbed(r.classes);
     return { id: r.id, classTitle: c?.title ?? 'Clase eliminada', startsAt: c?.starts_at ?? '', status: r.status };
   });
+  // ponytail: sorted client-side (a member has a handful of active bookings).
+  return kind === 'upcoming' ? entries.sort((a, b) => a.startsAt.localeCompare(b.startsAt)) : entries;
 }

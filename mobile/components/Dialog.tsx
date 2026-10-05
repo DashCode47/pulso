@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { Modal, View, Text, Pressable, Animated, Easing, StyleSheet } from 'react-native';
 import { create } from 'zustand';
-import { colors, radius, spacing } from '../theme';
+import { colors, radius, spacing, themed } from '../theme';
 
 type DialogButton = { text: string; style?: 'default' | 'cancel' | 'destructive'; onPress?: () => void };
 type DialogState = { title: string; message?: string; buttons: DialogButton[] };
@@ -78,7 +78,7 @@ export function DialogHost() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themed(() => StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.72)', alignItems: 'center', justifyContent: 'center', padding: spacing.xxl },
   cardWrap: { width: '100%', maxWidth: 360 },
   card: {
@@ -101,4 +101,4 @@ const styles = StyleSheet.create({
   textDefault: { color: colors.onAccent },
   textCancel: { color: colors.ink },
   textDestructive: { color: colors.danger },
-});
+}));

@@ -3,9 +3,9 @@
   "version": "1.0.0",
   "main": "expo-router/entry",
   "dependencies": {
-    "@expo/vector-icons": "^15.0.2",
     "@react-native-async-storage/async-storage": "^2.2.0",
     "@react-native-community/datetimepicker": "9.1.0",
+    "@sentry/react-native": "~7.11.0",
     "@supabase/supabase-js": "^2.112.4",
     "@tanstack/react-query": "^5.102.2",
     "aes-js": "^3.1.2",
@@ -20,6 +20,7 @@
     "expo-router": "~57.0.23",
     "expo-secure-store": "~57.0.4",
     "expo-status-bar": "~57.0.1",
+    "phosphor-react-native": "^3.0.6",
     "react": "19.3.0",
     "react-native": "0.86.3",
     "react-native-get-random-values": "~1.11.0",
@@ -41,7 +42,9 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "build:apk": "expo prebuild -p android && cd android && gradlew assembleRelease",
-    "build:aab": "expo prebuild -p android && cd android && gradlew bundleRelease"
+    "build:aab": "expo prebuild -p android && cd android && gradlew bundleRelease",
+    "build:apk:fast": "cd android && gradlew assembleRelease",
+    "build:aab:fast": "cd android && gradlew bundleRelease"
   },
   "private": true
 }

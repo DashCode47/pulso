@@ -1,6 +1,7 @@
 import { View, Pressable, Text, StyleSheet } from 'react-native';
+import { XIcon } from './icons';
 import type { Bike } from '../features/bookings/useBookings';
-import { colors, radius } from '../theme';
+import { colors, radius, themed } from '../theme';
 
 interface Props {
   bikes: Bike[];
@@ -16,22 +17,26 @@ export function BikeGrid({ bikes, selectedBikeId, bookedBikeId, onSelect }: Prop
         const isBooked = bike.id === bookedBikeId;
         const isSelected = bike.id === selectedBikeId;
         const isDisabled = bike.taken && !isBooked;
+        const filled = isBooked || isSelected;
 
         return (
           <Pressable
             key={bike.id}
             disabled={isDisabled}
             onPress={() => onSelect(bike.id)}
-            style={[
+            accessibilityLabel={`Bici ${bike.label}${isDisabled ? ', ocupada' : ''}`}
+            style={({ pressed }) => [
               styles.bike,
               isDisabled && styles.bikeTaken,
-              isSelected && styles.bikeSelected,
-              isBooked && styles.bikeBooked,
+              filled && styles.bikeFilled,
+              pressed && styles.pressed,
             ]}
           >
-            <Text style={[styles.bikeLabel, isDisabled && styles.bikeLabelTaken, isBooked && styles.bikeLabelBooked]}>
-              {bike.label}
-            </Text>
+            {isDisabled ? (
+              <XIcon size={14} color={colors.locked} weight="bold" />
+            ) : (
+              <Text style={[styles.bikeLabel, filled && styles.bikeLabelFilled]}>{bike.label}</Text>
+            )}
           </Pressable>
         );
       })}
@@ -39,22 +44,20 @@ export function BikeGrid({ bikes, selectedBikeId, bookedBikeId, onSelect }: Prop
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themed(() => StyleSheet.create({
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   bike: {
-    width: 64,
-    height: 48,
+    width: 52,
+    height: 44,
     borderRadius: radius.sm,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.inkMuted,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.bg,
   },
-  bikeTaken: { backgroundColor: colors.surfaceAlt, borderColor: colors.surfaceAlt, opacity: 0.6 },
-  bikeSelected: { borderColor: colors.accent, borderWidth: 1.5, backgroundColor: colors.accentSoft },
-  bikeBooked: { backgroundColor: colors.accent, borderColor: colors.accent },
-  bikeLabel: { fontSize: 12, fontWeight: '600', color: colors.ink },
-  bikeLabelTaken: { color: colors.locked },
-  bikeLabelBooked: { color: colors.onAccent },
-});
+  bikeTaken: { backgroundColor: colors.surfaceAlt, borderColor: colors.surfaceAlt },
+  bikeFilled: { backgroundColor: colors.accent, borderColor: colors.accent },
+  bikeLabel: { fontSize: 13, fontWeight: '700', color: colors.ink, fontVariant: ['tabular-nums'] },
+  bikeLabelFilled: { color: colors.onAccent },
+  pressed: { transform: [{ scale: 0.94 }] },
+}));

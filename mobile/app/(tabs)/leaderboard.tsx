@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { View, Text, Pressable, ScrollView, Animated, Easing, AccessibilityInfo, StyleSheet } from 'react-native';
 import { Image } from 'expo-image';
+import { ArrowRightIcon, MedalIcon, TrendUpIcon, TrophyIcon } from '../../components/icons';
+import { XpGuide } from '../../components/XpGuide';
 import { useQuery } from '@tanstack/react-query';
 import { getLeaderboard, type LeaderboardEntry as BaseEntry } from '../../services/backend';
 import { useAuthStore } from '../../features/auth/store';
 import { Screen } from '../../components/Screen';
 import { PulseLine } from '../../components/PulseLine';
-import { colors, radius, spacing, type } from '../../theme';
+import { colors, radius, spacing, type, themed, useThemeMode } from '../../theme';
 
 type LeaderboardEntry = BaseEntry & { isMe: boolean };
 
@@ -131,8 +133,10 @@ function LeaderboardRow({ entry }: { entry: LeaderboardEntry }) {
 }
 
 export default function Leaderboard() {
+  useThemeMode((s) => s.mode); // re-render al cambiar de tema
   const meId = useAuthStore((s) => s.user?.id);
   const isAdmin = useAuthStore((s) => s.isAdmin);
+  const router = useRouter();
   const { data, isLoading, isError, refetch } = useQuery({ queryKey: ['leaderboard'], queryFn: getLeaderboard });
   // Cada vez que la pestaña recibe foco: datos frescos y se remonta el podio para repetir la animación.
   const [visits, setVisits] = useState(0);
@@ -147,10 +151,18 @@ export default function Leaderboard() {
   const entries: LeaderboardEntry[] = (data ?? []).map((e) => ({ ...e, isMe: e.userId === meId }));
   const top10 = entries.slice(0, 10);
   const myEntry = entries.find((e) => e.isMe);
+  // El más cercano con más XP: rank() deja a los empatados en el mismo puesto,
+  // así que se busca por XP, no por rank - 1.
+  const ahead = myEntry && [...entries].reverse().find((e) => e.xp > myEntry.xp);
+  const gap = ahead && myEntry ? ahead.xp - myEntry.xp + 1 : 0;
 
   return (
     <Screen style={styles.container}>
-      <Text style={styles.title}>Ranking</Text>
+      <View style={styles.header}>
+        <Text style={styles.eyebrow}>General · XP total</Text>
+        <Text style={styles.title}>Ranking</Text>
+        <Text style={styles.subtitle}>Miembros activos ordenados por el XP que han acumulado desde que empezaron.</Text>
+      </View>
 
       {isLoading ? (
         <View style={styles.center}>
@@ -164,31 +176,57 @@ export default function Leaderboard() {
           </Pressable>
         </View>
       ) : (
-        <ScrollView contentContainerStyle={styles.scroll}>
+        <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
           {myEntry ? (
             <View style={styles.myRankCard}>
-              <Avatar entry={myEntry} size={44} />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.myRankLabel}>Tu posición</Text>
-                <Text style={styles.myRankXp}>{myEntry.xp} XP</Text>
+              <View style={styles.myRankTop}>
+                <Avatar entry={myEntry} size={44} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.myRankLabel}>Tu posición</Text>
+                  <Text style={styles.myRankXp}>{myEntry.xp} XP</Text>
+                </View>
+                <Text style={styles.myRankValue}>#{myEntry.rank}</Text>
               </View>
-              <Text style={styles.myRankValue}>#{myEntry.rank}</Text>
+              <View style={styles.myRankHint}>
+                {ahead ? <TrendUpIcon size={16} color={colors.onFeatured} weight="bold" /> : <MedalIcon size={16} color={colors.onFeatured} weight="fill" />}
+                <Text style={styles.myRankHintText}>
+                  {ahead ? (
+                    <>
+                      Te faltan <Text style={styles.myRankStrong}>{gap} XP</Text> para pasar a {ahead.name.split(' ')[0]} (#
+                      {ahead.rank}).
+                    </>
+                  ) : (
+                    'Vas primero. Sigue sumando clases para defender tu puesto.'
+                  )}
+                </Text>
+              </View>
             </View>
           ) : (
             !isAdmin && (
-              <View style={styles.myRankCard}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.myRankLabel}>Tu posición</Text>
-                  <Text style={styles.myRankXp}>Asiste a una clase para entrar al ranking</Text>
-                </View>
+              <View style={[styles.myRankCard, styles.joinCard]}>
+                <Text style={styles.myRankLabel}>Aún no estás en el ranking</Text>
+                <Text style={styles.joinTitle}>Tu primera clase te da 100 XP y te pone en la tabla.</Text>
+                <Pressable
+                  style={({ pressed }) => [styles.joinButton, pressed && styles.pressed]}
+                  onPress={() => router.push('/(tabs)/bookings')}
+                >
+                  <Text style={styles.joinButtonText}>Reservar una clase</Text>
+                  <ArrowRightIcon size={16} color={colors.featured} weight="bold" />
+                </Pressable>
               </View>
             )
           )}
 
+          <XpGuide />
+
           {top10.length === 0 ? (
-            <Text style={styles.emptyText}>Nadie suma XP todavía. ¡Reserva una clase y sé el primero!</Text>
+            <View style={styles.empty}>
+              <TrophyIcon size={28} color={colors.inkMuted} />
+              <Text style={styles.emptyText}>Nadie suma XP todavía. ¡Reserva una clase y sé el primero!</Text>
+            </View>
           ) : (
             <>
+              <Text style={styles.sectionLabel}>Top 10</Text>
               <Podium key={visits} top={top10.slice(0, 3)} />
               <View style={styles.list}>
                 {top10.slice(3).map((entry) => (
@@ -203,26 +241,49 @@ export default function Leaderboard() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themed(() => StyleSheet.create({
   container: { paddingTop: spacing.sm },
-  title: { ...type.title, color: colors.ink, paddingHorizontal: spacing.xxl },
-  scroll: { padding: spacing.xxl, gap: spacing.xxl },
+  header: { paddingHorizontal: spacing.xxl },
+  eyebrow: { ...type.eyebrow, color: colors.inkMuted, marginBottom: spacing.xs },
+  title: { ...type.title, color: colors.ink },
+  subtitle: { ...type.caption, fontSize: 13, lineHeight: 19, color: colors.inkSoft, marginTop: spacing.xs },
+  scroll: { padding: spacing.xxl, paddingBottom: spacing.xxl * 2, gap: spacing.lg },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.sm },
   errorText: { color: colors.inkSoft, fontSize: 14 },
   retryText: { color: colors.accent, fontWeight: '600', fontSize: 14 },
-  emptyText: { ...type.body, color: colors.inkSoft, textAlign: 'center', marginTop: spacing.xl },
+  pressed: { transform: [{ scale: 0.98 }], opacity: 0.9 },
+  empty: { alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.xl },
+  emptyText: { ...type.body, color: colors.inkSoft, textAlign: 'center' },
+  sectionLabel: { ...type.eyebrow, color: colors.inkMuted, marginTop: spacing.sm },
 
-  myRankCard: {
+  myRankCard: { backgroundColor: colors.featured, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, borderRadius: radius.lg, padding: spacing.lg, gap: spacing.md },
+  myRankTop: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  myRankLabel: { ...type.eyebrow, color: colors.onFeatured, opacity: 0.6 },
+  myRankXp: { fontSize: 16, fontWeight: '700', color: colors.onFeatured, marginTop: 2 },
+  myRankValue: { fontSize: 28, fontWeight: '800', color: colors.onFeatured, letterSpacing: -0.6 },
+  myRankHint: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.md,
-    backgroundColor: colors.accent,
-    borderRadius: radius.lg,
-    padding: spacing.lg,
+    gap: spacing.sm,
+    backgroundColor: colors.featuredSoft,
+    borderRadius: radius.sm,
+    padding: spacing.md,
   },
-  myRankLabel: { ...type.eyebrow, color: colors.onAccent, opacity: 0.6 },
-  myRankXp: { fontSize: 16, fontWeight: '700', color: colors.onAccent, marginTop: 2 },
-  myRankValue: { fontSize: 28, fontWeight: '800', color: colors.onAccent, letterSpacing: -0.6 },
+  myRankHintText: { ...type.caption, fontSize: 13, lineHeight: 18, color: colors.onFeatured, flex: 1, opacity: 0.85 },
+  myRankStrong: { fontWeight: '800' },
+  joinCard: { gap: spacing.sm },
+  joinTitle: { fontSize: 17, fontWeight: '700', lineHeight: 23, color: colors.onFeatured },
+  joinButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    backgroundColor: colors.onFeatured,
+    borderRadius: radius.pill,
+    minHeight: 44,
+    marginTop: spacing.xs,
+  },
+  joinButtonText: { color: colors.featured, fontWeight: '700' },
 
   avatar: { backgroundColor: colors.surfaceAlt, alignItems: 'center', justifyContent: 'center' },
   avatarText: { fontWeight: '700', color: colors.ink },
@@ -277,4 +338,4 @@ const styles = StyleSheet.create({
   xp: { fontSize: 15, color: colors.inkSoft, fontWeight: '600' },
   nameMe: { fontWeight: '800' },
   xpMe: { color: colors.ink },
-});
+}));

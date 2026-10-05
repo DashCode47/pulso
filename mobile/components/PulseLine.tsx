@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, Animated, Easing, View, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
-import { colors } from '../theme';
+import { colors, themed } from '../theme';
 
 // Trazo de ECG (onda P, complejo QRS, onda T) en una grilla de 100x32, como la
 // línea del logo. La x siempre avanza, así que barrer en horizontal = trazar.
@@ -103,6 +103,6 @@ export function PulseLine({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themed(() => StyleSheet.create({
   mask: { position: 'absolute', top: 0, bottom: 0, left: 0 },
-});
+}));

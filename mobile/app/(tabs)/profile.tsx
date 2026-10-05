@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { View, Text, Pressable, ScrollView, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, Pressable, ScrollView, ActivityIndicator, StyleSheet, Switch } from 'react-native';
 import { Image } from 'expo-image';
-import { Ionicons } from '@expo/vector-icons';
-import { useQuery } from '@tanstack/react-query';
+import { CameraIcon, CheckCircleIcon, CreditCardIcon, MoonIcon, ShieldCheckIcon, SignOutIcon, SunIcon, UserIcon, WarningCircleIcon, XCircleIcon, type Icon } from '../../components/icons';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useAuth } from '../../features/auth/useAuth';
 import { CANCEL_ERROR_MESSAGES } from '../../features/bookings/errorMessages';
 import { useBookingActions } from '../../features/bookings/useBookings';
@@ -12,13 +12,13 @@ import { ProgressBar } from '../../components/ProgressBar';
 import { Screen } from '../../components/Screen';
 import { showAlert } from '../../components/Dialog';
 import { PulseLine } from '../../components/PulseLine';
-import { colors, radius, spacing, type } from '../../theme';
+import { colors, radius, spacing, type, themed, useThemeMode } from '../../theme';
 
-const pastStatusStyle: Record<'attended' | 'cancelled' | 'no_show', { label: string; color: string; bg: string; icon: keyof typeof Ionicons.glyphMap }> = {
-  attended: { label: 'Asististe', color: colors.success, bg: colors.successSoft, icon: 'checkmark-circle' },
-  cancelled: { label: 'Cancelada', color: colors.inkSoft, bg: colors.surfaceAlt, icon: 'close-circle' },
-  no_show: { label: 'No-show', color: colors.danger, bg: colors.dangerSoft, icon: 'alert-circle' },
-};
+const pastStatusStyle = themed((): Record<'attended' | 'cancelled' | 'no_show', { label: string; color: string; icon: Icon }> => ({
+  attended: { label: 'Asististe', color: colors.success, icon: CheckCircleIcon },
+  cancelled: { label: 'Cancelada', color: colors.inkSoft, icon: XCircleIcon },
+  no_show: { label: 'No-show', color: colors.danger, icon: WarningCircleIcon },
+}));
 
 const membershipStatusLabel: Record<backend.MyMembership['status'], string> = {
   active: 'Activa',
@@ -34,6 +34,7 @@ function formatDay(isoDate: string) {
 
 export default function Profile() {
   const { user, isAdmin, signOut } = useAuth();
+  const { mode, setMode } = useThemeMode();
   const actions = useBookingActions();
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const { data: avatarUrl } = useMyAvatar();
@@ -43,14 +44,21 @@ export default function Profile() {
     queryFn: backend.getMyMembership,
     enabled: !isAdmin,
   });
-  const { data: history, isLoading: loadingHistory } = useQuery({
-    queryKey: ['my-history'],
-    queryFn: backend.listMyHistory,
+  const [tab, setTab] = useState<'upcoming' | 'past'>('upcoming');
+  // Both keys start with 'my-history' so booking actions invalidate them together.
+  const { data: upcoming = [], isLoading: loadingUpcoming } = useQuery({
+    queryKey: ['my-history', 'upcoming'],
+    queryFn: () => backend.listMyHistory('upcoming'),
     enabled: !isAdmin,
   });
-
-  const upcoming = (history ?? []).filter((h) => h.status === 'booked');
-  const past = (history ?? []).filter((h) => h.status !== 'booked') as (backend.MyHistoryEntry & {
+  const pastQuery = useInfiniteQuery({
+    queryKey: ['my-history', 'past'],
+    queryFn: ({ pageParam }) => backend.listMyHistory('past', pageParam),
+    initialPageParam: 0,
+    getNextPageParam: (last, all) => (last.length === backend.HISTORY_PAGE_SIZE ? all.length : undefined),
+    enabled: !isAdmin && tab === 'past',
+  });
+  const past = (pastQuery.data?.pages.flat() ?? []) as (backend.MyHistoryEntry & {
     status: 'attended' | 'cancelled' | 'no_show';
   })[];
 
@@ -84,8 +92,10 @@ export default function Profile() {
           >
             {avatarUrl ? (
               <Image source={{ uri: avatarUrl }} style={styles.avatarImage} cachePolicy="memory-disk" />
+            ) : isAdmin ? (
+              <ShieldCheckIcon size={28} color={colors.onAccent} weight="fill" />
             ) : (
-              <Ionicons name={isAdmin ? 'shield-checkmark' : 'person'} size={28} color={colors.onAccent} />
+              <UserIcon size={28} color={colors.onAccent} weight="fill" />
             )}
             {changeAvatar.isPending ? (
               <View style={styles.avatarOverlay}>
@@ -93,7 +103,7 @@ export default function Profile() {
               </View>
             ) : (
               <View style={styles.avatarBadge}>
-                <Ionicons name="camera" size={12} color={colors.ink} />
+                <CameraIcon size={12} color={colors.ink} weight="fill" />
               </View>
             )}
           </Pressable>
@@ -131,55 +141,82 @@ export default function Profile() {
               </View>
             ) : (
               <View style={styles.noMembershipCard}>
-                <Ionicons name="card-outline" size={24} color={colors.inkMuted} />
+                <CreditCardIcon size={24} color={colors.inkMuted} />
                 <Text style={styles.noMembershipText}>No tienes una membresía activa todavía.</Text>
               </View>
             )}
 
             <View>
-              <Text style={styles.sectionTitle}>Mis reservas</Text>
-              {loadingHistory ? (
-                <PulseLine style={{ alignSelf: 'center' }} />
-              ) : (
-                <View style={styles.historyList}>
-                  {upcoming.map((entry) => (
-                    <View key={entry.id} style={styles.upcomingRow}>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.historyTitle}>{entry.classTitle}</Text>
-                        <Text style={styles.historyDate}>
-                          {entry.startsAt
-                            ? new Date(entry.startsAt).toLocaleDateString('es', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
-                            : ''}
-                        </Text>
+              <View style={styles.tabs} accessibilityRole="tablist">
+                {(['upcoming', 'past'] as const).map((key) => (
+                  <Pressable
+                    key={key}
+                    style={[styles.tab, tab === key && styles.tabActive]}
+                    accessibilityRole="tab"
+                    accessibilityState={{ selected: tab === key }}
+                    onPress={() => setTab(key)}
+                  >
+                    <Text style={[styles.tabText, tab === key && styles.tabTextActive]}>
+                      {key === 'upcoming' ? 'Próximas' : 'Historial'}
+                    </Text>
+                    {key === 'upcoming' && upcoming.length > 0 && (
+                      <View style={[styles.tabCount, tab === key && styles.tabCountActive]}>
+                        <Text style={[styles.tabCountText, tab === key && styles.tabCountTextActive]}>{upcoming.length}</Text>
                       </View>
-                      <Pressable
-                        style={styles.cancelUpcomingButton}
-                        disabled={cancellingId === entry.id}
-                        onPress={() => confirmCancel(entry)}
-                      >
-                        {cancellingId === entry.id ? (
-                          <ActivityIndicator size="small" color={colors.danger} />
-                        ) : (
-                          <Text style={styles.cancelUpcomingButtonText}>Cancelar</Text>
-                        )}
-                      </Pressable>
-                    </View>
-                  ))}
-                  {upcoming.length === 0 && <Text style={styles.emptyText}>No tienes reservas próximas.</Text>}
-                </View>
-              )}
-            </View>
+                    )}
+                  </Pressable>
+                ))}
+              </View>
 
-            <View>
-              <Text style={styles.sectionTitle}>Historial</Text>
-              {loadingHistory ? (
+              {tab === 'upcoming' ? (
+                loadingUpcoming ? (
+                  <PulseLine style={{ alignSelf: 'center' }} />
+                ) : upcoming.length === 0 ? (
+                  <Text style={styles.emptyText}>No tienes reservas próximas.</Text>
+                ) : (
+                  <View style={styles.upcomingList}>
+                    {upcoming.map((entry) => {
+                      const d = new Date(entry.startsAt);
+                      return (
+                        <View key={entry.id} style={styles.upcomingCard}>
+                          <View style={styles.dateBlock}>
+                            <Text style={styles.dateDay}>{d.getDate()}</Text>
+                            <Text style={styles.dateMonth}>{d.toLocaleDateString('es', { month: 'short' }).replace('.', '')}</Text>
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.historyTitle}>{entry.classTitle}</Text>
+                            <Text style={styles.historyDate}>
+                              {d.toLocaleDateString('es', { weekday: 'long' })} ·{' '}
+                              {d.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })}
+                            </Text>
+                          </View>
+                          <Pressable
+                            style={styles.cancelUpcomingButton}
+                            disabled={cancellingId === entry.id}
+                            onPress={() => confirmCancel(entry)}
+                          >
+                            {cancellingId === entry.id ? (
+                              <ActivityIndicator size="small" color={colors.danger} />
+                            ) : (
+                              <Text style={styles.cancelUpcomingButtonText}>Cancelar</Text>
+                            )}
+                          </Pressable>
+                        </View>
+                      );
+                    })}
+                  </View>
+                )
+              ) : pastQuery.isLoading ? (
                 <PulseLine style={{ alignSelf: 'center' }} />
+              ) : past.length === 0 ? (
+                <Text style={styles.emptyText}>Todavía no tienes historial.</Text>
               ) : (
-                <View style={styles.historyList}>
-                  {past.map((entry) => {
+                <View style={styles.historyGroup}>
+                  {past.map((entry, i) => {
                     const s = pastStatusStyle[entry.status];
                     return (
-                      <View key={entry.id} style={styles.historyRow}>
+                      <View key={entry.id} style={[styles.historyRow, i > 0 && styles.historyRowDivider]}>
+                        <s.icon size={18} color={s.color} weight="fill" />
                         <View style={{ flex: 1 }}>
                           <Text style={styles.historyTitle}>{entry.classTitle}</Text>
                           <Text style={styles.historyDate}>
@@ -188,22 +225,43 @@ export default function Profile() {
                               : ''}
                           </Text>
                         </View>
-                        <View style={[styles.historyBadge, { backgroundColor: s.bg }]}>
-                          <Ionicons name={s.icon} size={13} color={s.color} />
-                          <Text style={[styles.historyStatus, { color: s.color }]}>{s.label}</Text>
-                        </View>
+                        <Text style={[styles.historyStatus, { color: s.color }]}>{s.label}</Text>
                       </View>
                     );
                   })}
-                  {past.length === 0 && <Text style={styles.emptyText}>Todavía no tienes historial.</Text>}
+                  {pastQuery.hasNextPage && (
+                    <Pressable
+                      style={[styles.historyRow, styles.historyRowDivider, styles.loadMore]}
+                      disabled={pastQuery.isFetchingNextPage}
+                      onPress={() => pastQuery.fetchNextPage()}
+                    >
+                      {pastQuery.isFetchingNextPage ? (
+                        <ActivityIndicator size="small" color={colors.inkSoft} />
+                      ) : (
+                        <Text style={styles.loadMoreText}>Ver más</Text>
+                      )}
+                    </Pressable>
+                  )}
                 </View>
               )}
             </View>
           </>
         )}
 
+        <View style={styles.themeRow}>
+          {mode === 'dark' ? <MoonIcon size={18} color={colors.ink} weight="fill" /> : <SunIcon size={18} color={colors.ink} weight="fill" />}
+          <Text style={styles.themeText}>Tema claro</Text>
+          <Switch
+            value={mode === 'light'}
+            onValueChange={(on) => setMode(on ? 'light' : 'dark')}
+            trackColor={{ false: colors.surfaceAlt, true: colors.accent }}
+            thumbColor={colors.onAccent}
+            accessibilityLabel="Tema claro"
+          />
+        </View>
+
         <Pressable style={styles.signOutButton} onPress={signOut}>
-          <Ionicons name="log-out-outline" size={18} color={colors.danger} />
+          <SignOutIcon size={18} color={colors.danger} />
           <Text style={styles.signOutText}>Cerrar sesión</Text>
         </Pressable>
       </ScrollView>
@@ -211,7 +269,7 @@ export default function Profile() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themed(() => StyleSheet.create({
   content: { padding: spacing.xxl, gap: spacing.xl },
   header: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   avatar: { width: 56, height: 56, borderRadius: 28, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
@@ -257,44 +315,75 @@ const styles = StyleSheet.create({
   },
   noMembershipText: { color: colors.inkSoft, fontSize: 14, textAlign: 'center' },
 
-  sectionTitle: { ...type.eyebrow, color: colors.inkMuted, marginBottom: spacing.md },
-  historyList: { gap: spacing.sm },
-  upcomingRow: {
+  tabs: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.accent,
-    borderRadius: radius.md,
-    padding: spacing.lg,
-    gap: spacing.sm,
+    borderRadius: radius.pill,
+    padding: 4,
+    marginBottom: spacing.lg,
   },
-  cancelUpcomingButton: { borderWidth: 1, borderColor: colors.danger, borderRadius: radius.pill, paddingVertical: spacing.xs, paddingHorizontal: spacing.sm },
-  cancelUpcomingButtonText: { color: colors.danger, fontWeight: '600', fontSize: 12 },
-  historyRow: {
+  tab: {
+    flex: 1,
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
+    borderRadius: radius.pill,
+    paddingVertical: spacing.sm,
+  },
+  tabActive: { backgroundColor: colors.accent },
+  tabText: { ...type.label, color: colors.inkSoft },
+  tabTextActive: { color: colors.onAccent },
+  tabCount: { backgroundColor: colors.surfaceAlt, borderRadius: radius.pill, minWidth: 18, paddingHorizontal: 5, alignItems: 'center' },
+  tabCountActive: { backgroundColor: colors.onAccent },
+  tabCountText: { fontSize: 11, fontWeight: '700', color: colors.inkSoft },
+  tabCountTextActive: { color: colors.accent },
+
+  upcomingList: { gap: spacing.sm },
+  upcomingCard: {
+    flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.surface,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
     borderRadius: radius.md,
-    padding: spacing.lg,
-    gap: spacing.sm,
+    padding: spacing.md,
+    gap: spacing.md,
   },
+  dateBlock: { width: 48, paddingVertical: spacing.xs, borderRadius: radius.sm, backgroundColor: colors.accentSoft, alignItems: 'center' },
+  dateDay: { fontSize: 20, fontWeight: '800', color: colors.ink, lineHeight: 24 },
+  dateMonth: { ...type.eyebrow, fontSize: 10, letterSpacing: 1, color: colors.inkSoft },
+  cancelUpcomingButton: { borderWidth: 1, borderColor: colors.danger, borderRadius: radius.pill, paddingVertical: spacing.xs, paddingHorizontal: spacing.sm },
+  cancelUpcomingButtonText: { color: colors.danger, fontWeight: '600', fontSize: 12 },
+
+  historyGroup: {
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    overflow: 'hidden',
+  },
+  historyRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.md, paddingHorizontal: spacing.lg, gap: spacing.md },
+  historyRowDivider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
   historyTitle: { fontSize: 15, fontWeight: '600', color: colors.ink },
   historyDate: { fontSize: 13, color: colors.inkSoft, marginTop: 2 },
-  historyBadge: {
+  historyStatus: { fontSize: 12, fontWeight: '700' },
+  loadMore: { justifyContent: 'center' },
+  loadMoreText: { ...type.label, color: colors.ink },
+  emptyText: { color: colors.inkSoft, fontSize: 14 },
+
+  themeRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    borderRadius: radius.pill,
-    paddingVertical: 4,
-    paddingHorizontal: spacing.sm,
+    gap: spacing.md,
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.lg,
   },
-  historyStatus: { fontSize: 12, fontWeight: '700' },
-  emptyText: { color: colors.inkSoft, fontSize: 14 },
+  themeText: { flex: 1, fontSize: 15, fontWeight: '600', color: colors.ink },
 
   signOutButton: {
     flexDirection: 'row',
@@ -308,4 +397,4 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
   },
   signOutText: { color: colors.danger, fontWeight: '600' },
-});
+}));

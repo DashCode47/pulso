@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { View, Animated, Easing, StyleSheet } from 'react-native';
-import { colors } from '../theme';
+import { colors, themed } from '../theme';
 
 interface Props {
   progress: number; // 0..1
@@ -23,7 +23,7 @@ export function ProgressBar({ progress, delay = 0 }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themed(() => StyleSheet.create({
   track: { height: 6, borderRadius: 3, backgroundColor: colors.surfaceAlt, overflow: 'hidden' },
   fill: { height: '100%', width: '100%', backgroundColor: colors.accent, borderRadius: 3, transformOrigin: 'left' },
-});
+}));

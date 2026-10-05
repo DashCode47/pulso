@@ -61,12 +61,13 @@ export function useAuth() {
       return { error };
     },
     async signUp(email: string, password: string, name: string) {
-      const { user, requiresEmailConfirmation, error } = await backendAuth.signUp({ email, password, name });
-      if (user && !requiresEmailConfirmation) {
+      const { user, error } = await backendAuth.signUp({ email, password, name });
+      if (user) {
         setUser(user);
         setIsAdmin(await backendAuth.isAdmin());
       }
-      return { error, requiresEmailConfirmation };
+      // No session without an error means "Confirm email" is still on in the Supabase dashboard.
+      return { error: error ?? (user ? null : new Error('No se pudo iniciar sesión tras el registro.')) };
     },
     async signOut() {
       await backendAuth.signOut();

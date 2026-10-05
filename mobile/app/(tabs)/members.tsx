@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import { View, Text, TextInput, Pressable, ScrollView, StyleSheet, Alert } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { CaretDownIcon, CaretUpIcon } from '../../components/icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import * as backend from '../../services/backend';
 import { Screen } from '../../components/Screen';
 import { PulseLine } from '../../components/PulseLine';
-import { colors, radius, spacing, type } from '../../theme';
+import { colors, radius, spacing, type, themed, useThemeMode } from '../../theme';
 
 const reservationStatusLabel: Record<backend.MemberReservation['status'], string> = {
   booked: 'Reservada',
@@ -54,7 +54,7 @@ function MemberRow({ member }: { member: backend.MemberSummary }) {
           </Text>
         </View>
         <Text style={styles.credits}>{member.creditsBalance} créditos</Text>
-        <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={18} color={colors.inkMuted} />
+        {expanded ? <CaretUpIcon size={18} color={colors.inkMuted} weight="bold" /> : <CaretDownIcon size={18} color={colors.inkMuted} weight="bold" />}
       </Pressable>
 
       {expanded && (
@@ -106,6 +106,7 @@ function MemberRow({ member }: { member: backend.MemberSummary }) {
 }
 
 export default function Members() {
+  useThemeMode((s) => s.mode); // re-render al cambiar de tema
   const [query, setQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
 
@@ -147,7 +148,7 @@ export default function Members() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themed(() => StyleSheet.create({
   content: { flex: 1, padding: spacing.xxl, gap: spacing.lg },
   title: { ...type.title, color: colors.ink },
   search: {
@@ -205,4 +206,4 @@ const styles = StyleSheet.create({
   noShowButton: { borderWidth: 1, borderColor: colors.danger, borderRadius: radius.sm, paddingVertical: spacing.xs, paddingHorizontal: spacing.sm },
   noShowButtonText: { color: colors.danger, fontWeight: '600', fontSize: 12 },
   emptyText: { color: colors.inkSoft, fontSize: 14 },
-});
+}));

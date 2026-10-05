@@ -4,39 +4,29 @@ import { Link } from 'expo-router';
 import { useAuth } from '../../features/auth/useAuth';
 import { Screen } from '../../components/Screen';
 import { Wordmark } from '../../components/Wordmark';
+import { PasswordInput } from '../../features/auth/PasswordInput';
 import { authStyles as styles } from '../../features/auth/styles';
-import { colors } from '../../theme';
+import { colors, useThemeMode } from '../../theme';
 
 export default function SignUp() {
+  const mode = useThemeMode((s) => s.mode);
   const { signUp } = useAuth();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [confirmationSent, setConfirmationSent] = useState(false);
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   async function handleSignUp() {
+    if (!name.trim()) return setError('Escribe tu nombre.');
+    if (password !== confirmPassword) return setError('Las contraseñas no coinciden.');
     setError(null);
     setSubmitting(true);
-    const { error, requiresEmailConfirmation } = await signUp(email, password, name);
+    const { error } = await signUp(email.trim(), password, name.trim());
     setSubmitting(false);
-    if (error) return setError(error.message);
-    if (requiresEmailConfirmation) setConfirmationSent(true);
-  }
-
-  if (confirmationSent) {
-    return (
-      <Screen edges={['top', 'bottom']} style={styles.container}>
-        <Text style={styles.title}>Revisa tu correo</Text>
-        <Text style={styles.body}>
-          Te enviamos un enlace de confirmación a {email}. Ábrelo y después vuelve para iniciar sesión.
-        </Text>
-        <Link href="/(auth)/sign-in" style={styles.link}>
-          <Text style={styles.linkStrong}>Ir a iniciar sesión</Text>
-        </Link>
-      </Screen>
-    );
+    if (error) setError(error.message);
+    // On success the auth store flips and the root Stack.Protected routes to (tabs).
   }
 
   return (
@@ -47,7 +37,7 @@ export default function SignUp() {
         style={styles.input}
         placeholder="Nombre"
         placeholderTextColor={colors.inkMuted}
-        keyboardAppearance="dark"
+        keyboardAppearance={mode}
         value={name}
         onChangeText={setName}
       />
@@ -55,21 +45,14 @@ export default function SignUp() {
         style={styles.input}
         placeholder="Correo electrónico"
         placeholderTextColor={colors.inkMuted}
-        keyboardAppearance="dark"
+        keyboardAppearance={mode}
         autoCapitalize="none"
         keyboardType="email-address"
         value={email}
         onChangeText={setEmail}
       />
-      <TextInput
-        style={styles.input}
-        placeholder="Contraseña"
-        placeholderTextColor={colors.inkMuted}
-        keyboardAppearance="dark"
-        secureTextEntry
-        value={password}
-        onChangeText={setPassword}
-      />
+      <PasswordInput placeholder="Contraseña" value={password} onChangeText={setPassword} />
+      <PasswordInput placeholder="Confirmar contraseña" value={confirmPassword} onChangeText={setConfirmPassword} />
       {error && <Text style={styles.error}>{error}</Text>}
       <Pressable
         style={({ pressed }) => [styles.button, pressed && styles.pressed]}

@@ -4,10 +4,12 @@ import { Link } from 'expo-router';
 import { useAuth } from '../../features/auth/useAuth';
 import { Screen } from '../../components/Screen';
 import { Wordmark } from '../../components/Wordmark';
+import { PasswordInput } from '../../features/auth/PasswordInput';
 import { authStyles as styles } from '../../features/auth/styles';
-import { colors } from '../../theme';
+import { colors, useThemeMode } from '../../theme';
 
 export default function SignIn() {
+  const mode = useThemeMode((s) => s.mode);
   const { signIn } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -30,21 +32,13 @@ export default function SignIn() {
         style={styles.input}
         placeholder="Correo electrónico"
         placeholderTextColor={colors.inkMuted}
-        keyboardAppearance="dark"
+        keyboardAppearance={mode}
         autoCapitalize="none"
         keyboardType="email-address"
         value={email}
         onChangeText={setEmail}
       />
-      <TextInput
-        style={styles.input}
-        placeholder="Contraseña"
-        placeholderTextColor={colors.inkMuted}
-        keyboardAppearance="dark"
-        secureTextEntry
-        value={password}
-        onChangeText={setPassword}
-      />
+      <PasswordInput placeholder="Contraseña" value={password} onChangeText={setPassword} />
       {error && <Text style={styles.error}>{error}</Text>}
       <Pressable
         style={({ pressed }) => [styles.button, pressed && styles.pressed]}

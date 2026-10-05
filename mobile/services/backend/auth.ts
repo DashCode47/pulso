@@ -17,13 +17,8 @@ export async function signUp(params: { email: string; password: string; name: st
     password: params.password,
     options: { data: { full_name: params.name } },
   });
-  return {
-    user: data?.user ? toAppUser(data.user) : null,
-    // Supabase issues no session yet when email confirmation is required --
-    // the user must click the link in their inbox before they can sign in.
-    requiresEmailConfirmation: !!data?.user && !data.session,
-    error,
-  };
+  // Email confirmation is off: a successful sign-up returns a session right away.
+  return { user: data?.session?.user ? toAppUser(data.session.user) : null, error };
 }
 
 export async function signInWithPassword(params: { email: string; password: string }) {

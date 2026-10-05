@@ -1,15 +1,16 @@
 import { useRef } from 'react';
 import { View, Text, Pressable, Animated, StyleSheet } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { ArrowRightIcon, CaretLeftIcon } from '../../components/icons';
 import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNews } from '../../features/home/useNews';
 import { PulseLine } from '../../components/PulseLine';
-import { colors, radius, spacing, type } from '../../theme';
+import { colors, radius, spacing, type, themed, useThemeMode } from '../../theme';
 
 const HERO = 460;
 
 export default function NewsDetail() {
+  useThemeMode((s) => s.mode); // re-render al cambiar de tema
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -69,7 +70,7 @@ export default function NewsDetail() {
               onPress={() => router.navigate(item.cta!.href)}
             >
               <Text style={styles.ctaText}>{item.cta.label}</Text>
-              <Ionicons name="arrow-forward" size={18} color={colors.onAccent} />
+              <ArrowRightIcon size={18} color={colors.onAccent} weight="bold" />
             </Pressable>
           )}
         </View>
@@ -82,13 +83,13 @@ export default function NewsDetail() {
         accessibilityLabel="Volver"
         style={({ pressed }) => [styles.back, { top: insets.top + spacing.sm }, pressed && { opacity: 0.7 }]}
       >
-        <Ionicons name="chevron-back" size={22} color={colors.ink} />
+        <CaretLeftIcon size={22} color={colors.ink} weight="bold" />
       </Pressable>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themed(() => StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
   hero: { height: HERO, justifyContent: 'flex-end' },
   heroScrim: {
@@ -138,4 +139,4 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(245,243,238,0.2)',
   },
-});
+}));
