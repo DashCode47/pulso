@@ -1,14 +1,21 @@
 import { useCallback } from 'react';
 import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
 import { Image } from 'expo-image';
-import { ArrowRightIcon, CalendarBlankIcon, FireIcon, LightningIcon, LockIcon, PlusCircleIcon, RankingIcon, UsersThreeIcon } from '../../components/icons';
+import { ArrowRightIcon, CalendarBlankIcon, CaretRightIcon, ClockIcon, FireIcon, HourglassIcon, LightningIcon, LockIcon, PlusCircleIcon, RankingIcon, UsersThreeIcon } from '../../components/icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '../../features/auth/store';
 import { useMyProgress, weeklyGoalHint } from '../../features/progress/useMyProgress';
 import { useNews } from '../../features/home/useNews';
 import { useMyAvatar } from '../../features/profile/useAvatar';
-import { groupClassesByDay, useUpcomingClasses, useMyMembership } from '../../features/bookings/useBookings';
+import {
+  groupClassesByDay,
+  useUpcomingClasses,
+  useMyMembership,
+  useScheduleStatus,
+  isSchedulePending,
+  scheduleStatusMessage,
+} from '../../features/bookings/useBookings';
 import { membershipBlockMessage } from '../../features/bookings/errorMessages';
 import * as backend from '../../services/backend';
 import { ProgressBar } from '../../components/ProgressBar';
@@ -117,6 +124,9 @@ function MemberHome() {
   const { data: classes } = useUpcomingClasses();
   const { data: membership } = useMyMembership();
   const blockMessage = membershipBlockMessage(membership);
+  const scheduleState = useScheduleStatus();
+  const schedulePending = isSchedulePending(scheduleState);
+  const scheduleMessage = scheduleStatusMessage(scheduleState);
   const next = classes?.find((c) => c.myReservationId);
   const nextClass = next && {
     title: next.title,
@@ -124,6 +134,7 @@ function MemberHome() {
     startsAt: new Date(next.startsAt).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' }),
     bikeLabel: next.bikes.find((b) => b.id === next.bookedBikeId)?.label ?? '',
   };
+  const waitlisted = classes?.filter((c) => c.myWaitlistEntryId && !c.started) ?? [];
   const firstName = (user?.name ?? user?.email ?? '').split(' ')[0].split('@')[0];
 
   return (
@@ -185,12 +196,46 @@ function MemberHome() {
           </View>
         ) : (
           <View style={styles.emptyClassCard}>
-            <CalendarBlankIcon size={28} color={colors.inkSoft} />
-            <Text style={styles.emptyClassText}>No tienes clases reservadas.</Text>
+            {schedulePending ? (
+              <ClockIcon size={28} color={colors.inkSoft} />
+            ) : (
+              <CalendarBlankIcon size={28} color={colors.inkSoft} />
+            )}
+            <Text style={styles.emptyClassText}>{scheduleMessage ?? 'No tienes clases reservadas.'}</Text>
             <Pressable style={({ pressed }) => [styles.bookButton, pressed && styles.pressed]} onPress={() => router.push('/(tabs)/bookings')}>
-              <Text style={styles.bookButtonText}>Reservar una clase</Text>
+              <Text style={styles.bookButtonText}>{schedulePending ? 'Ver horario' : 'Reservar una clase'}</Text>
             </Pressable>
           </View>
+        )}
+
+        {waitlisted.length > 0 && (
+          <Pressable
+            style={({ pressed }) => [styles.waitlistRow, pressed && styles.pressed]}
+            onPress={() =>
+              waitlisted.length === 1
+                ? router.push({ pathname: '/(tabs)/bookings', params: { classId: waitlisted[0].id } })
+                : router.push('/(tabs)/profile')
+            }
+          >
+            <View style={styles.waitlistIcon}>
+              <HourglassIcon size={18} color={colors.ink} weight="fill" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.waitlistTitle}>
+                {waitlisted.length === 1
+                  ? waitlisted[0].myWaitlistPosition === 1
+                    ? 'Eres el siguiente en la lista de espera'
+                    : `Estás #${waitlisted[0].myWaitlistPosition} en la lista de espera`
+                  : `Estás en ${waitlisted.length} listas de espera`}
+              </Text>
+              <Text style={styles.waitlistMeta} numberOfLines={1}>
+                {waitlisted.length === 1
+                  ? `${waitlisted[0].title} · ${groupClassesByDay([waitlisted[0]])[0].label} · ${new Date(waitlisted[0].startsAt).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })}`
+                  : 'Te avisamos si se libera un cupo.'}
+              </Text>
+            </View>
+            <CaretRightIcon size={16} color={colors.inkMuted} weight="bold" />
+          </Pressable>
         )}
 
         <View style={styles.statsRow}>
@@ -311,6 +356,11 @@ const styles = themed(() => StyleSheet.create({
     marginTop: spacing.sm,
   },
   bookButtonText: { color: colors.onAccent, fontWeight: '700' },
+
+  waitlistRow: { ...card(), borderRadius: radius.md, flexDirection: 'row', alignItems: 'center', padding: spacing.lg, gap: spacing.md },
+  waitlistIcon: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.surfaceAlt, alignItems: 'center', justifyContent: 'center' },
+  waitlistTitle: { fontSize: 15, fontWeight: '700', color: colors.ink },
+  waitlistMeta: { ...type.caption, color: colors.inkSoft, marginTop: 2 },
 
   statsRow: { flexDirection: 'row', gap: spacing.sm },
   statChip: { ...card(), flex: 1, borderRadius: radius.md, paddingVertical: spacing.lg, alignItems: 'center', gap: spacing.xs },

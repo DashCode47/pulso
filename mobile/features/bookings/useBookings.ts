@@ -1,8 +1,10 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import * as backend from '../../services/backend';
+import { scheduleStatus } from './scheduleStatus';
 
 export type { ClassWithBikes, Bike } from '../../services/backend';
 export { groupClassesByDay, groupClassesByWeekday } from './groupByDay';
+export * from './scheduleStatus';
 
 export function useUpcomingClasses() {
   // ponytail: polling instead of realtime -- keeps bike availability roughly
@@ -14,6 +16,13 @@ export function useUpcomingClasses() {
 // app comes back to the foreground is plenty.
 export function useSchedulePublishedUntil() {
   return useQuery({ queryKey: ['classes', 'publishedUntil'], queryFn: backend.getSchedulePublishedUntil, refetchInterval: 5 * 60_000 });
+}
+
+// Whether there's anything to book right now, or why not (see scheduleStatus).
+export function useScheduleStatus() {
+  const { data: classes } = useUpcomingClasses();
+  const { data: publishedUntil } = useSchedulePublishedUntil();
+  return scheduleStatus(classes ?? [], classes && publishedUntil);
 }
 
 // Same key as the profile screen, so both share one cache entry.

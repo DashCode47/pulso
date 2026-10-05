@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { View, Text, Pressable, ScrollView, ActivityIndicator, StyleSheet, Switch } from 'react-native';
 import { Image } from 'expo-image';
-import { CameraIcon, CheckCircleIcon, CreditCardIcon, MoonIcon, ShieldCheckIcon, SignOutIcon, SunIcon, UserIcon, WarningCircleIcon, XCircleIcon, type Icon } from '../../components/icons';
+import { CameraIcon, CheckCircleIcon, HourglassIcon, CreditCardIcon, MoonIcon, ShieldCheckIcon, SignOutIcon, SunIcon, UserIcon, WarningCircleIcon, XCircleIcon, type Icon } from '../../components/icons';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useAuth } from '../../features/auth/useAuth';
-import { CANCEL_ERROR_MESSAGES } from '../../features/bookings/errorMessages';
-import { useBookingActions } from '../../features/bookings/useBookings';
+import { CANCEL_ERROR_MESSAGES, WAITLIST_ERROR_MESSAGES } from '../../features/bookings/errorMessages';
+import { useBookingActions, useUpcomingClasses, type ClassWithBikes } from '../../features/bookings/useBookings';
+import { useRouter } from 'expo-router';
 import { useChangeAvatar, useMyAvatar } from '../../features/profile/useAvatar';
 import * as backend from '../../services/backend';
 import { ProgressBar } from '../../components/ProgressBar';
@@ -58,6 +59,11 @@ export default function Profile() {
     getNextPageParam: (last, all) => (last.length === backend.HISTORY_PAGE_SIZE ? all.length : undefined),
     enabled: !isAdmin && tab === 'past',
   });
+  // Waitlist spots live on the class list (position included), not in reservations.
+  const { data: classes } = useUpcomingClasses();
+  const waitlisted = isAdmin ? [] : (classes ?? []).filter((c) => c.myWaitlistEntryId && !c.started);
+  const upcomingCount = upcoming.length + waitlisted.length;
+  const router = useRouter();
   const past = (pastQuery.data?.pages.flat() ?? []) as (backend.MyHistoryEntry & {
     status: 'attended' | 'cancelled' | 'no_show';
   })[];
@@ -73,6 +79,22 @@ export default function Profile() {
           const { error } = await actions.cancel(entry.id);
           setCancellingId(null);
           if (error) showAlert('Error', CANCEL_ERROR_MESSAGES[error.message] ?? 'No se pudo cancelar la reserva.');
+        },
+      },
+    ]);
+  }
+
+  function confirmLeaveWaitlist(c: ClassWithBikes) {
+    showAlert('Salir de la lista', `¿Salir de la lista de espera de "${c.title}"?`, [
+      { text: 'No', style: 'cancel' },
+      {
+        text: 'Sí, salir',
+        style: 'destructive',
+        onPress: async () => {
+          setCancellingId(c.id);
+          const { error } = await actions.leaveWaitlist(c.myWaitlistEntryId!);
+          setCancellingId(null);
+          if (error) showAlert('Error', WAITLIST_ERROR_MESSAGES[error.message] ?? 'No se pudo salir de la lista.');
         },
       },
     ]);
@@ -159,9 +181,9 @@ export default function Profile() {
                     <Text style={[styles.tabText, tab === key && styles.tabTextActive]}>
                       {key === 'upcoming' ? 'Próximas' : 'Historial'}
                     </Text>
-                    {key === 'upcoming' && upcoming.length > 0 && (
+                    {key === 'upcoming' && upcomingCount > 0 && (
                       <View style={[styles.tabCount, tab === key && styles.tabCountActive]}>
-                        <Text style={[styles.tabCountText, tab === key && styles.tabCountTextActive]}>{upcoming.length}</Text>
+                        <Text style={[styles.tabCountText, tab === key && styles.tabCountTextActive]}>{upcomingCount}</Text>
                       </View>
                     )}
                   </Pressable>
@@ -171,7 +193,7 @@ export default function Profile() {
               {tab === 'upcoming' ? (
                 loadingUpcoming ? (
                   <PulseLine style={{ alignSelf: 'center' }} />
-                ) : upcoming.length === 0 ? (
+                ) : upcomingCount === 0 ? (
                   <Text style={styles.emptyText}>No tienes reservas próximas.</Text>
                 ) : (
                   <View style={styles.upcomingList}>
@@ -204,6 +226,53 @@ export default function Profile() {
                         </View>
                       );
                     })}
+                    {waitlisted.length > 0 && (
+                      <>
+                        <Text style={styles.sectionLabel}>En lista de espera</Text>
+                        {waitlisted.map((c) => {
+                          const d = new Date(c.startsAt);
+                          return (
+                            <Pressable
+                              key={c.id}
+                              style={({ pressed }) => [styles.upcomingCard, pressed && { opacity: 0.8 }]}
+                              onPress={() => router.push({ pathname: '/(tabs)/bookings', params: { classId: c.id } })}
+                            >
+                              <View style={[styles.dateBlock, styles.waitlistDateBlock]}>
+                                <Text style={styles.dateDay}>{d.getDate()}</Text>
+                                <Text style={styles.dateMonth}>{d.toLocaleDateString('es', { month: 'short' }).replace('.', '')}</Text>
+                              </View>
+                              <View style={{ flex: 1 }}>
+                                <Text style={styles.historyTitle}>{c.title}</Text>
+                                <Text style={styles.historyDate}>
+                                  {d.toLocaleDateString('es', { weekday: 'long' })} ·{' '}
+                                  {d.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })}
+                                </Text>
+                                <View style={styles.waitlistPosition}>
+                                  <HourglassIcon size={12} color={colors.ink} weight="fill" />
+                                  <Text style={styles.waitlistPositionText}>
+                                    {c.myWaitlistPosition === 1 ? 'Eres el siguiente' : `Posición #${c.myWaitlistPosition}`}
+                                  </Text>
+                                </View>
+                              </View>
+                              <Pressable
+                                style={styles.cancelUpcomingButton}
+                                disabled={cancellingId === c.id}
+                                onPress={() => confirmLeaveWaitlist(c)}
+                              >
+                                {cancellingId === c.id ? (
+                                  <ActivityIndicator size="small" color={colors.danger} />
+                                ) : (
+                                  <Text style={styles.cancelUpcomingButtonText}>Salir</Text>
+                                )}
+                              </Pressable>
+                            </Pressable>
+                          );
+                        })}
+                        <Text style={styles.waitlistHint}>
+                          Si se libera un cupo te reservamos automáticamente, se descuenta 1 crédito y te avisamos.
+                        </Text>
+                      </>
+                    )}
                   </View>
                 )
               ) : pastQuery.isLoading ? (
@@ -353,6 +422,11 @@ const styles = themed(() => StyleSheet.create({
   dateBlock: { width: 48, paddingVertical: spacing.xs, borderRadius: radius.sm, backgroundColor: colors.accentSoft, alignItems: 'center' },
   dateDay: { fontSize: 20, fontWeight: '800', color: colors.ink, lineHeight: 24 },
   dateMonth: { ...type.eyebrow, fontSize: 10, letterSpacing: 1, color: colors.inkSoft },
+  sectionLabel: { ...type.eyebrow, color: colors.inkMuted, marginTop: spacing.md },
+  waitlistDateBlock: { backgroundColor: colors.surfaceAlt },
+  waitlistPosition: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: spacing.xs },
+  waitlistPositionText: { fontSize: 12, fontWeight: '700', color: colors.ink },
+  waitlistHint: { ...type.caption, color: colors.inkSoft },
   cancelUpcomingButton: { borderWidth: 1, borderColor: colors.danger, borderRadius: radius.pill, paddingVertical: spacing.xs, paddingHorizontal: spacing.sm },
   cancelUpcomingButtonText: { color: colors.danger, fontWeight: '600', fontSize: 12 },
 

@@ -6,8 +6,12 @@ import {
   useUpcomingClasses,
   groupClassesByWeekday,
   useBookingActions,
-  useSchedulePublishedUntil,
   useMyMembership,
+  useScheduleStatus,
+  upcomingSunday,
+  showsNextWeek,
+  isSchedulePending,
+  scheduleStatusMessage,
 } from '../../features/bookings/useBookings';
 import type { ClassWithBikes } from '../../features/bookings/useBookings';
 import {
@@ -28,7 +32,7 @@ export default function Bookings() {
   const actions = useBookingActions();
   const router = useRouter();
   const { classId } = useLocalSearchParams<{ classId?: string }>();
-  const { data: publishedUntil } = useSchedulePublishedUntil();
+  const scheduleState = useScheduleStatus();
   const { data: membership } = useMyMembership();
   const [selectedDayKey, setSelectedDayKey] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
@@ -64,10 +68,13 @@ export default function Bookings() {
     );
   }
 
-  const days = groupClassesByWeekday(classes ?? []);
+  // Once this week has nothing left to book, jump to the next one (published
+  // or not) instead of leaving a week of finished days on screen.
+  const days = groupClassesByWeekday(classes ?? [], showsNextWeek(scheduleState) ? upcomingSunday() : undefined);
   const today = localIsoDate();
   const blockMessage = membershipBlockMessage(membership, today);
-  const nextWeekPublished = isSunday() && publishedUntil ? publishedUntil > today : null;
+  const scheduleMessage = scheduleStatusMessage(scheduleState);
+  const schedulePending = isSchedulePending(scheduleState);
   const linkedDayKey = classId ? days.find((d) => d.classes.some((c) => c.id === classId))?.key : undefined;
   const hasBookable = (d: (typeof days)[number]) => d.classes.some((c) => !c.started);
   const hasMine = (d: (typeof days)[number]) => d.classes.some((c) => c.bookedBikeId || c.myWaitlistEntryId);
@@ -167,16 +174,8 @@ export default function Bookings() {
         <Banner tone="danger" icon={LockIcon} text={blockMessage} onPress={() => router.push('/(tabs)/profile')} chevron />
       )}
 
-      {nextWeekPublished !== null && (
-        <Banner
-          tone="info"
-          icon={nextWeekPublished ? CalendarCheckIcon : ClockIcon}
-          text={
-            nextWeekPublished
-              ? 'Ya puedes reservar las clases de la próxima semana.'
-              : 'El horario de la próxima semana aún no se publica. Vuelve más tarde.'
-          }
-        />
+      {scheduleMessage && (
+        <Banner tone="info" icon={schedulePending ? ClockIcon : CalendarCheckIcon} text={scheduleMessage} />
       )}
 
       {notice && (
@@ -203,11 +202,23 @@ export default function Bookings() {
         {upcoming.length === 0 && (
           <View style={styles.empty}>
             <View style={styles.emptyIcon}>
-              {started.length > 0 ? <MoonIcon size={24} color={colors.inkSoft} /> : <CalendarBlankIcon size={24} color={colors.inkSoft} />}
+              {started.length > 0 ? (
+                <MoonIcon size={24} color={colors.inkSoft} />
+              ) : schedulePending ? (
+                <ClockIcon size={24} color={colors.inkSoft} />
+              ) : (
+                <CalendarBlankIcon size={24} color={colors.inkSoft} />
+              )}
             </View>
-            <Text style={styles.emptyTitle}>{started.length > 0 ? 'Día terminado' : 'Sin clases'}</Text>
+            <Text style={styles.emptyTitle}>
+              {started.length > 0 ? 'Día terminado' : schedulePending ? 'Horario en camino' : 'Sin clases'}
+            </Text>
             <Text style={styles.emptyText}>
-              {started.length > 0 ? 'Las clases de hoy ya terminaron.' : 'No hay clases programadas este día.'}
+              {started.length > 0
+                ? 'Las clases de hoy ya terminaron.'
+                : schedulePending
+                  ? 'Las clases de este día aún no se publican.'
+                  : 'No hay clases programadas este día.'}
             </Text>
           </View>
         )}
@@ -323,11 +334,6 @@ function shortDate(key: string) {
 function longDate(key: string) {
   const s = fromKey(key).toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long' }).replace(',', '');
   return s.charAt(0).toUpperCase() + s.slice(1);
-}
-
-// Schedules go up on Sundays, so that's the only day the status matters.
-function isSunday() {
-  return new Date().getDay() === 0;
 }
 
 const styles = themed(() => StyleSheet.create({

@@ -34,8 +34,9 @@ plantilla (lun 07:00) ──cron diario──▶ classes: lun 5, lun 12, lun 19,
 El horario de la semana siguiente se sube los domingos (la hora varía). Las clases se generan igual con 28 días de anticipación, pero los miembros **solo ven y reservan hasta `studio_settings.schedule_published_until`** (fecha de Bogotá, siempre un domingo). El admin ve todo.
 
 - El admin publica con **Publicar semana siguiente** en `/admin/schedule` (`admin_publish_next_week()`). De jueves a domingo publica la semana siguiente; de lunes a miércoles, la actual (subida tarde). Es idempotente.
+- Cuando la fecha de publicación avanza, se manda una push `schedule_published` ("Horario publicado") a los miembros activos cuyo periodo pagado cubre esa semana (`20261005175947_notify-schedule-published.sql`). Volver a publicar la misma semana no reenvía nada.
 - La RLS de `classes` oculta lo no publicado y un trigger en `reservations` y `waitlist_entries` bloquea reservar/entrar a la lista (`class_not_available`).
-- Los domingos la app muestra en **Reservar** si la próxima semana ya está publicada o no.
+- La app explica en **Reservar** y en Home cuándo no hay nada que reservar (`features/bookings/scheduleStatus.ts`): si la semana actual aún no se publica, o si ya terminaron sus clases (o es domingo). En ese caso **Reservar** pasa a la semana siguiente y avisa si ya se puede reservar o si el horario se publica el domingo.
 
 ## Guardar una plantilla — `admin_save_class_template()`
 
