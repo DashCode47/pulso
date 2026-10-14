@@ -12,7 +12,6 @@ import { useAuthStore } from '../features/auth/store';
 import { useSessionHydration } from '../features/auth/useAuth';
 import { colors, useThemeMode } from '../theme';
 import { DialogHost } from '../components/Dialog';
-import { Onboarding, isOnboarded } from '../features/onboarding/Onboarding';
 
 // Sin DSN (dev local) el SDK queda deshabilitado.
 Sentry.init({
@@ -40,16 +39,12 @@ function RootNavigator() {
     const t = setTimeout(() => setMinElapsed(true), 2000);
     return () => clearTimeout(t);
   }, []);
-  const [onboarded, setOnboarded] = useState(isOnboarded);
 
   if (loading || !minElapsed) {
     return (
       <Image source={require('../assets/splash.jpg')} style={{ flex: 1, backgroundColor: '#000' }} contentFit="cover" />
     );
   }
-
-  // Solo en el primer arranque y sin sesión (quien ya entró no lo necesita).
-  if (!onboarded && !user) return <Onboarding onDone={() => setOnboarded(true)} />;
 
   return (
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
@@ -59,6 +54,9 @@ function RootNavigator() {
       </Stack.Protected>
       <Stack.Protected guard={!user}>
         <Stack.Screen name="(auth)" />
+        {/* Después de (auth): al cerrar sesión se cae en sign-in, no aquí. Solo
+            se entra desde index la primera vez. */}
+        <Stack.Screen name="onboarding" options={{ animation: 'fade' }} />
       </Stack.Protected>
     </Stack>
   );
