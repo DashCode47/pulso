@@ -66,7 +66,7 @@ export default function SignUp() {
         onPress={handleSignUp}
         disabled={submitting}
       >
-        {submitting ? <ActivityIndicator color={colors.onAccent} /> : <Text style={styles.buttonText}>Crear cuenta</Text>}
+        {submitting ? <ActivityIndicator color={colors.bg} /> : <Text style={styles.buttonText}>Crear cuenta</Text>}
       </Pressable>
       <Link href="/(auth)/sign-in" style={styles.link}>
         <Text style={styles.linkText}>

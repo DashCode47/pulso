@@ -20,15 +20,17 @@ export const authStyles = themed(() => StyleSheet.create({
   },
   inputWithIcon: { paddingRight: spacing.lg + 32 },
   eye: { position: 'absolute', right: spacing.lg, top: 0, bottom: 0, justifyContent: 'center' },
+  // ink/bg en vez de accent: el acento en oscuro es dorado, pero el login
+  // mantiene su CTA marfil sobre negro (negro sobre marfil en claro).
   button: {
-    backgroundColor: colors.accent,
+    backgroundColor: colors.ink,
     borderRadius: radius.pill,
     paddingVertical: spacing.lg,
     alignItems: 'center',
     marginTop: spacing.sm,
   },
   pressed: { transform: [{ scale: 0.98 }], opacity: 0.9 },
-  buttonText: { color: colors.onAccent, fontSize: 16, fontWeight: '700' },
+  buttonText: { color: colors.bg, fontSize: 16, fontWeight: '700' },
   error: { color: colors.danger, fontSize: 13, fontWeight: '600' },
   link: { marginTop: spacing.lg, alignSelf: 'center' },
   linkText: { color: colors.inkSoft, fontSize: 14 },
