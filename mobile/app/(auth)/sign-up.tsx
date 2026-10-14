@@ -1,15 +1,17 @@
 import { useState } from 'react';
 import { Pressable, ActivityIndicator, Linking } from 'react-native';
 import { LEGAL_LINKS } from '../../lib/legal';
-import { Text } from '../../components/Text';
+import { Text, TextInput } from '../../components/Text';
 import { Link } from 'expo-router';
 import { useAuth } from '../../features/auth/useAuth';
-import { AuthScreen } from '../../features/auth/AuthScreen';
-import { AuthField } from '../../features/auth/AuthField';
+import { Screen } from '../../components/Screen';
+import { Wordmark } from '../../components/Wordmark';
+import { PasswordInput } from '../../features/auth/PasswordInput';
 import { authStyles as styles } from '../../features/auth/styles';
-import { EnvelopeIcon, LockIcon, UserIcon } from '../../components/icons';
+import { colors, useThemeMode } from '../../theme';
 
 export default function SignUp() {
+  const mode = useThemeMode((s) => s.mode);
   const { signUp } = useAuth();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -30,18 +32,29 @@ export default function SignUp() {
   }
 
   return (
-    <AuthScreen>
-      <AuthField icon={UserIcon} placeholder="Nombre" value={name} onChangeText={setName} />
-      <AuthField
-        icon={EnvelopeIcon}
+    <Screen edges={['top', 'bottom']} style={styles.container}>
+      <Wordmark />
+      <Text style={styles.subtitle}>Crea tu cuenta</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="Nombre"
+        placeholderTextColor={colors.inkMuted}
+        keyboardAppearance={mode}
+        value={name}
+        onChangeText={setName}
+      />
+      <TextInput
+        style={styles.input}
         placeholder="Correo electrónico"
+        placeholderTextColor={colors.inkMuted}
+        keyboardAppearance={mode}
         autoCapitalize="none"
         keyboardType="email-address"
         value={email}
         onChangeText={setEmail}
       />
-      <AuthField icon={LockIcon} secure placeholder="Contraseña" value={password} onChangeText={setPassword} />
-      <AuthField icon={LockIcon} secure placeholder="Confirmar contraseña" value={confirmPassword} onChangeText={setConfirmPassword} />
+      <PasswordInput placeholder="Contraseña" value={password} onChangeText={setPassword} />
+      <PasswordInput placeholder="Confirmar contraseña" value={confirmPassword} onChangeText={setConfirmPassword} />
       {error && <Text style={styles.error}>{error}</Text>}
       <Text style={[styles.linkText, { textAlign: 'center' }]}>
         Al crear tu cuenta aceptas los{' '}
@@ -53,13 +66,13 @@ export default function SignUp() {
         onPress={handleSignUp}
         disabled={submitting}
       >
-        {submitting ? <ActivityIndicator color="#111" /> : <Text style={styles.buttonText}>Crear cuenta</Text>}
+        {submitting ? <ActivityIndicator color={colors.onAccent} /> : <Text style={styles.buttonText}>Crear cuenta</Text>}
       </Pressable>
       <Link href="/(auth)/sign-in" style={styles.link}>
         <Text style={styles.linkText}>
           ¿Ya tienes cuenta? <Text style={styles.linkStrong}>Entra</Text>
         </Text>
       </Link>
-    </AuthScreen>
+    </Screen>
   );
 }

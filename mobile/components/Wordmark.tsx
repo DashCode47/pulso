@@ -10,7 +10,7 @@ export function Wordmark() {
     <View style={styles.row} accessible accessibilityRole="image" accessibilityLabel="Pulso">
       <Text style={styles.text}>PULSO</Text>
       <View style={styles.line}>
-        <PulseLine mode="once" color={colors.highlight} width={72} height={44} strokeWidth={2.5} duration={1200} />
+        <PulseLine mode="once" width={72} height={44} strokeWidth={2.5} duration={1200} />
       </View>
     </View>
   );
