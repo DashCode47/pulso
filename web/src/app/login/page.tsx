@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Logo } from '@/components/logo';
+import { LegalFooter } from '@/components/legal-footer';
 import { Button, Card, ErrorBanner, Input, Label } from '@/components/ui';
 
 export default function LoginPage() {
@@ -39,8 +40,8 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-canvas px-4">
-      <div className="w-full max-w-sm">
+    <main className="flex min-h-screen flex-col items-center bg-canvas px-4 py-6">
+      <div className="my-auto w-full max-w-sm py-6">
         <div className="mb-8 flex justify-center">
           <Logo className="scale-125" />
         </div>
@@ -76,6 +77,7 @@ export default function LoginPage() {
           </form>
         </Card>
       </div>
+      <LegalFooter className="justify-center" />
     </main>
   );
 }
