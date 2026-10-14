@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { View, Text, Pressable, ScrollView, Animated, Easing, AccessibilityInfo, StyleSheet } from 'react-native';
+import { View, Pressable, ScrollView, Animated, Easing, AccessibilityInfo, StyleSheet } from 'react-native';
+import { Text } from '../../components/Text';
 import { Image } from 'expo-image';
 import { ArrowRightIcon, MedalIcon, TrendUpIcon, TrophyIcon } from '../../components/icons';
 import { XpGuide } from '../../components/XpGuide';

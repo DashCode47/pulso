@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
-import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
+import { View, Pressable, ScrollView, StyleSheet } from 'react-native';
+import { Text } from '../../components/Text';
 import { useFocusEffect, useRouter } from 'expo-router';
 import {
   ArrowCircleUpIcon,

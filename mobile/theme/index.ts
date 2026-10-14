@@ -3,8 +3,8 @@ import { create } from 'zustand';
 
 // Design tokens compartidos por toda la app. Cambiar un valor aquí lo cambia
 // en todas las pantallas que lo usan — evita hex sueltos en los componentes.
-// Paleta monocromática sacada del logo: negro puro + blanco marfil. El acento
-// ES el marfil (CTA claro sobre negro); el color solo aparece en estados.
+// Paleta sacada del logo: negro puro + blanco marfil. En oscuro el acento es
+// el dorado del logo (#A69248, toque premium); en claro, el negro.
 const dark = {
   bg: '#000000', // mismo negro del fondo del logo, así el logo no "flota" en una caja
   surface: '#111111',
@@ -14,14 +14,14 @@ const dark = {
   inkSoft: '#A1A09C',
   inkMuted: '#6B6A67',
 
-  accent: '#F5F3EE',
-  accentSoft: 'rgba(245,243,238,0.08)',
+  accent: '#A69248',
+  accentSoft: 'rgba(166,146,72,0.12)',
   onAccent: '#000000',
   // Tarjeta destacada (p. ej. "Tu posición"): en oscuro es el marfil invertido.
   featured: '#F5F3EE',
   onFeatured: '#000000',
   featuredSoft: 'rgba(0,0,0,0.07)',
-  highlight: '#F5C451', // dorado (mismo oro del podio): detalles que deben resaltar
+  highlight: '#A69248', // dorado del logo: detalles que deben resaltar
 
   success: '#7FD1A0',
   successSoft: 'rgba(127,209,160,0.12)',

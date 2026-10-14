@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
-import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
+import { View, Pressable, ScrollView, StyleSheet } from 'react-native';
+import { Text } from '../../components/Text';
 import { Image } from 'expo-image';
 import { ArrowRightIcon, CalendarBlankIcon, FireIcon, LightningIcon, LockIcon, PlusCircleIcon, RankingIcon, UsersThreeIcon } from '../../components/icons';
 import { useFocusEffect, useRouter } from 'expo-router';

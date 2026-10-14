@@ -30,7 +30,7 @@ export default function TabsLayout() {
         tabBarActiveTintColor: colors.ink,
         tabBarInactiveTintColor: colors.inkMuted,
         tabBarStyle: { backgroundColor: colors.bg, borderTopColor: colors.border },
-        tabBarLabelStyle: { fontSize: 10, fontWeight: '600', letterSpacing: 0.4 },
+        tabBarLabelStyle: { fontFamily: 'Montserrat', fontSize: 10, fontWeight: '600', letterSpacing: 0.4 },
       }}
     >
       <Tabs.Screen name="home" options={{ title: 'Inicio', tabBarIcon: tabIcon(HouseIcon) }} />

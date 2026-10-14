@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react';
-import { View, Text, Pressable, ActivityIndicator, LayoutAnimation, StyleSheet, type ViewStyle } from 'react-native';
+import { View, Pressable, ActivityIndicator, LayoutAnimation, StyleSheet, type ViewStyle } from 'react-native';
+import { Text } from './Text';
 import { CaretDownIcon, CaretUpIcon, CheckIcon, ClockIcon, HourglassIcon, LockIcon, UserIcon, UsersThreeIcon, WarningCircleIcon, XCircleIcon, type Icon } from './icons';
 import type { ClassWithBikes } from '../features/bookings/useBookings';
 import { BikeGrid } from './BikeGrid';

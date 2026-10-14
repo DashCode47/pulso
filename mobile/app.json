@@ -29,7 +29,7 @@
         "expo-notifications",
         {
           "icon": "./assets/notification-icon.png",
-          "color": "#F5C518"
+          "color": "#A69248"
         }
       ],
       [
@@ -43,6 +43,36 @@
       "@react-native-community/datetimepicker",
       "./plugins/withReleaseSigning",
       "expo-image",
+      [
+        "expo-font",
+        {
+          "ios": {
+            "fonts": [
+            "node_modules/@expo-google-fonts/montserrat/400Regular/Montserrat_400Regular.ttf",
+            "node_modules/@expo-google-fonts/montserrat/500Medium/Montserrat_500Medium.ttf",
+            "node_modules/@expo-google-fonts/montserrat/600SemiBold/Montserrat_600SemiBold.ttf",
+            "node_modules/@expo-google-fonts/montserrat/700Bold/Montserrat_700Bold.ttf",
+            "node_modules/@expo-google-fonts/montserrat/800ExtraBold/Montserrat_800ExtraBold.ttf",
+            "node_modules/@expo-google-fonts/montserrat/900Black/Montserrat_900Black.ttf"
+            ]
+          },
+          "android": {
+            "fonts": [
+              {
+                "fontFamily": "Montserrat",
+                "fontDefinitions": [
+                  { "path": "node_modules/@expo-google-fonts/montserrat/400Regular/Montserrat_400Regular.ttf", "weight": 400 },
+                  { "path": "node_modules/@expo-google-fonts/montserrat/500Medium/Montserrat_500Medium.ttf", "weight": 500 },
+                  { "path": "node_modules/@expo-google-fonts/montserrat/600SemiBold/Montserrat_600SemiBold.ttf", "weight": 600 },
+                  { "path": "node_modules/@expo-google-fonts/montserrat/700Bold/Montserrat_700Bold.ttf", "weight": 700 },
+                  { "path": "node_modules/@expo-google-fonts/montserrat/800ExtraBold/Montserrat_800ExtraBold.ttf", "weight": 800 },
+                  { "path": "node_modules/@expo-google-fonts/montserrat/900Black/Montserrat_900Black.ttf", "weight": 900 }
+                ]
+              }
+            ]
+          }
+        }
+      ],
       ["@sentry/react-native", { "url": "https://sentry.io/", "organization": "code-for-all", "project": "pulso-tracking" }]
     ],
     "extra": {

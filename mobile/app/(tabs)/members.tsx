@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { View, Text, TextInput, Pressable, ScrollView, StyleSheet, Alert } from 'react-native';
+import { View, Pressable, ScrollView, StyleSheet, Alert } from 'react-native';
+import { Text, TextInput } from '../../components/Text';
 import { CaretDownIcon, CaretUpIcon } from '../../components/icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import * as backend from '../../services/backend';

@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { View, Text, Pressable, LayoutAnimation, StyleSheet } from 'react-native';
+import { View, Pressable, LayoutAnimation, StyleSheet } from 'react-native';
+import { Text } from './Text';
 import {
   BicycleIcon,
   CaretDownIcon,

@@ -1,5 +1,6 @@
 import { useRef } from 'react';
-import { View, Text, Pressable, Animated, StyleSheet, useWindowDimensions } from 'react-native';
+import { View, Pressable, Animated, StyleSheet, useWindowDimensions } from 'react-native';
+import { Text } from './Text';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import type { NewsItem } from '../services/backend';

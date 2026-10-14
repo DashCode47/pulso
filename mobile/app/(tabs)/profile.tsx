@@ -1,7 +1,9 @@
 import { useState } from 'react';
-import { View, Text, Pressable, ScrollView, ActivityIndicator, StyleSheet, Switch } from 'react-native';
+import { View, Pressable, ScrollView, ActivityIndicator, StyleSheet, Switch, Linking } from 'react-native';
+import { Text } from '../../components/Text';
 import { Image } from 'expo-image';
-import { CameraIcon, CheckCircleIcon, CreditCardIcon, MoonIcon, ShieldCheckIcon, SignOutIcon, SunIcon, UserIcon, WarningCircleIcon, XCircleIcon, type Icon } from '../../components/icons';
+import { CameraIcon, CaretRightIcon, CheckCircleIcon, CreditCardIcon, FileTextIcon, LifebuoyIcon, MoonIcon, ShieldCheckIcon, SignOutIcon, SunIcon, UserIcon, WarningCircleIcon, XCircleIcon, type Icon } from '../../components/icons';
+import { LEGAL_LINKS } from '../../lib/legal';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useAuth } from '../../features/auth/useAuth';
 import { CANCEL_ERROR_MESSAGES } from '../../features/bookings/errorMessages';
@@ -37,6 +39,7 @@ export default function Profile() {
   const { mode, setMode } = useThemeMode();
   const actions = useBookingActions();
   const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const { data: avatarUrl } = useMyAvatar();
   const changeAvatar = useChangeAvatar();
   const { data: membership, isLoading: loadingMembership } = useQuery({
@@ -76,6 +79,30 @@ export default function Profile() {
         },
       },
     ]);
+  }
+
+  function confirmDeleteAccount() {
+    showAlert(
+      'Eliminar cuenta',
+      'Se borrarán tu cuenta, perfil, reservas, progreso y logros. Tus reservas futuras se cancelan y los créditos restantes se pierden. Esta acción no se puede deshacer.',
+      [
+        { text: 'No', style: 'cancel' },
+        {
+          text: 'Eliminar',
+          style: 'destructive',
+          onPress: async () => {
+            setDeleting(true);
+            try {
+              await backend.deleteMyAccount();
+              await signOut();
+            } catch {
+              setDeleting(false);
+              showAlert('Error', 'No se pudo eliminar la cuenta. Inténtalo de nuevo o escríbenos desde Soporte.');
+            }
+          },
+        },
+      ],
+    );
   }
 
   return (
@@ -260,10 +287,40 @@ export default function Profile() {
           />
         </View>
 
+        <View style={styles.historyGroup}>
+          {([
+            { label: 'Soporte', icon: LifebuoyIcon, url: LEGAL_LINKS.support },
+            { label: 'Términos y condiciones', icon: FileTextIcon, url: LEGAL_LINKS.terms },
+            { label: 'Política de privacidad', icon: ShieldCheckIcon, url: LEGAL_LINKS.privacy },
+          ] as const).map((l, i) => (
+            <Pressable
+              key={l.url}
+              style={[styles.historyRow, i > 0 && styles.historyRowDivider]}
+              accessibilityRole="link"
+              onPress={() => Linking.openURL(l.url)}
+            >
+              <l.icon size={18} color={colors.ink} />
+              <Text style={styles.themeText}>{l.label}</Text>
+              <CaretRightIcon size={16} color={colors.inkMuted} />
+            </Pressable>
+          ))}
+        </View>
+
         <Pressable style={styles.signOutButton} onPress={signOut}>
           <SignOutIcon size={18} color={colors.danger} />
           <Text style={styles.signOutText}>Cerrar sesión</Text>
         </Pressable>
+
+        {/* Admins are removed by another admin (see delete_my_account). */}
+        {!isAdmin && (
+          <Pressable style={styles.deleteAccount} disabled={deleting} onPress={confirmDeleteAccount}>
+            {deleting ? (
+              <ActivityIndicator size="small" color={colors.danger} />
+            ) : (
+              <Text style={styles.deleteAccountText}>Eliminar cuenta</Text>
+            )}
+          </Pressable>
+        )}
       </ScrollView>
     </Screen>
   );
@@ -397,4 +454,6 @@ const styles = themed(() => StyleSheet.create({
     marginTop: spacing.md,
   },
   signOutText: { color: colors.danger, fontWeight: '600' },
+  deleteAccount: { alignSelf: 'center', padding: spacing.sm },
+  deleteAccountText: { color: colors.inkMuted, fontSize: 13, textDecorationLine: 'underline' },
 }));

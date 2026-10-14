@@ -1,4 +1,5 @@
-import { View, Pressable, Text, StyleSheet } from 'react-native';
+import { View, Pressable, StyleSheet } from 'react-native';
+import { Text } from './Text';
 import { XIcon } from './icons';
 import type { Bike } from '../features/bookings/useBookings';
 import { colors, radius, themed } from '../theme';

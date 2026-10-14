@@ -4,16 +4,15 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { Stack, ThemeProvider, DarkTheme, DefaultTheme } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
-import { View, Text } from 'react-native';
+import { Image } from 'expo-image';
 import * as Notifications from 'expo-notifications';
 import * as Sentry from '@sentry/react-native';
 import { queryClient } from '../lib/queryClient';
 import { useAuthStore } from '../features/auth/store';
 import { useSessionHydration } from '../features/auth/useAuth';
 import { colors, useThemeMode } from '../theme';
-import { PulseLine } from '../components/PulseLine';
-import { FadeIn } from '../components/FadeIn';
 import { DialogHost } from '../components/Dialog';
+import { Onboarding, isOnboarded } from '../features/onboarding/Onboarding';
 
 // Sin DSN (dev local) el SDK queda deshabilitado.
 Sentry.init({
@@ -32,42 +31,25 @@ Notifications.setNotificationHandler({
   }),
 });
 
-// Solo el texto (el pulso ya está debajo): cada letra entra con fade + slide,
-// escalonada, después de un latido del pulso.
-function SplashLogo() {
-  return (
-    <View style={{ flexDirection: 'row' }} accessible accessibilityRole="image" accessibilityLabel="Pulso">
-      {[...'PULSO'].map((letter, i) => (
-        <FadeIn key={i} delay={700 + i * 90}>
-          {/* paddingRight: que la itálica no se corte al partir en letras sueltas */}
-          <Text style={{ fontSize: 52, fontWeight: '900', fontStyle: 'italic', color: colors.ink, includeFontPadding: false, paddingRight: 2 }}>
-            {letter}
-          </Text>
-        </FadeIn>
-      ))}
-    </View>
-  );
-}
-
 function RootNavigator() {
   const user = useAuthStore((s) => s.user);
   const loading = useAuthStore((s) => s.loading);
-  // Mínimo de 2 s en el splash para que la animación del logo termine
-  // (la última letra acaba ~1.5 s), aunque la sesión cargue antes.
+  // Mínimo de 2 s en el splash para que se alcance a ver, aunque la sesión cargue antes.
   const [minElapsed, setMinElapsed] = useState(false);
   useEffect(() => {
     const t = setTimeout(() => setMinElapsed(true), 2000);
     return () => clearTimeout(t);
   }, []);
+  const [onboarded, setOnboarded] = useState(isOnboarded);
 
   if (loading || !minElapsed) {
     return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 24, backgroundColor: colors.bg }}>
-        <SplashLogo />
-        <PulseLine width={120} height={40} />
-      </View>
+      <Image source={require('../assets/splash.jpg')} style={{ flex: 1, backgroundColor: '#000' }} contentFit="cover" />
     );
   }
+
+  // Solo en el primer arranque y sin sesión (quien ya entró no lo necesita).
+  if (!onboarded && !user) return <Onboarding onDone={() => setOnboarded(true)} />;
 
   return (
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>

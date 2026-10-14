@@ -82,6 +82,20 @@ export async function uploadMyAvatar(uri: string, contentType: string): Promise<
   return url;
 }
 
+// Avatar files first: storage rows can't be deleted from SQL, and once the
+// user is gone the "delete own avatar" policy no longer matches.
+export async function deleteMyAccount(): Promise<void> {
+  const userId = await currentUserId();
+  if (!userId) throw new Error('Usuario no autenticado');
+
+  const bucket = backend.storage.from('avatars');
+  const { data: files } = await bucket.list(userId);
+  if (files?.length) await bucket.remove(files.map((f) => `${userId}/${f.name}`));
+
+  const { error } = await backend.rpc('delete_my_account');
+  if (error) throw error;
+}
+
 export type MyHistoryEntry = {
   id: string;
   classTitle: string;

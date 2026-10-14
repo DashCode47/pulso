@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
+import { View, Pressable, ScrollView, StyleSheet } from 'react-native';
+import { Text } from '../../components/Text';
 import { CalendarBlankIcon, CalendarCheckIcon, CaretRightIcon, CheckIcon, ClockIcon, CloudSlashIcon, ExclamationMarkIcon, LockIcon, MoonIcon, type Icon } from '../../components/icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {

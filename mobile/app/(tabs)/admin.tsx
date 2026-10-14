@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { View, Text, TextInput, Pressable, ScrollView, ActivityIndicator, Platform, StyleSheet } from 'react-native';
+import { View, Pressable, ScrollView, ActivityIndicator, Platform, StyleSheet } from 'react-native';
+import { Text, TextInput } from '../../components/Text';
 import { CaretLeftIcon, CaretRightIcon, TrashIcon } from '../../components/icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import DateTimePicker from '@react-native-community/datetimepicker';
