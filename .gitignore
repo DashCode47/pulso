@@ -22,3 +22,8 @@
 
 # Editor
 .vscode/
+
+# promo videos (local only)
+promo/
+pulso-promo-hf/
+pulso-promo-v2/
