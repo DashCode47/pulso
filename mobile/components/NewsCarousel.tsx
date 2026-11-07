@@ -95,6 +95,8 @@ const styles = themed(() => StyleSheet.create({
     borderRadius: radius.lg,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: `rgba(${colors.inkRgb},0.14)`,
+    // Abajo el degradado ya funde con el fondo; ahí el borde se veía como una línea blanca.
+    borderBottomWidth: 0,
     // Funde la foto hacia el fondo del tema para que el texto (ink) siempre se lea.
     experimental_backgroundImage: `linear-gradient(180deg, rgba(${colors.bgRgb},0.1) 0%, rgba(${colors.bgRgb},0.2) 40%, rgba(${colors.bgRgb},0.9) 100%)`,
   },

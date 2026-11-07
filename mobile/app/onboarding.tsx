@@ -1,11 +1,13 @@
 import { useRef, useState } from 'react';
-import { View, Pressable, FlatList, StyleSheet, useWindowDimensions, type ImageSourcePropType } from 'react-native';
+import { View, Pressable, FlatList, StyleSheet, useWindowDimensions } from 'react-native';
 import { router, type Href } from 'expo-router';
-import { Image, type ImageContentPosition } from 'expo-image';
+import { type ImageContentPosition } from 'expo-image';
+import { AppImage } from '../components/AppImage';
+import type { AppImageName } from '../services/backend';
 import { StatusBar } from 'expo-status-bar';
 import { Screen } from '../components/Screen';
 import { Text } from '../components/Text';
-import { PulseLine } from '../components/PulseLine';
+import { Logo } from '../components/Logo';
 import { FadeIn } from '../components/FadeIn';
 import { useOnboarding } from '../features/onboarding/store';
 
@@ -19,31 +21,37 @@ const GOLD = '#C9A94B';
 
 // title en blanco; la frase en dorado (highlight) + gris (rest). focus elige qué
 // parte de la foto (vertical, 2:3) queda visible al recortarla a la pantalla.
+// Las fotos salen del bucket app-images (se cambian sin publicar build); las
+// de assets/ son placeholder y respaldo sin conexión.
 // Fotos: Pexels (1: Yuliya Mulyukina, 3: Jonathan Borba) y Unsplash
 // (2: Galina Bogdanova), licencias libres para uso comercial.
 const SLIDES: {
-  image: ImageSourcePropType;
+  image: AppImageName;
+  fallback: number;
   focus: ImageContentPosition;
   title: string;
   highlight: string;
   rest: string;
 }[] = [
   {
-    image: require('../assets/onboarding-1.jpg'),
+    image: 'onboarding-1.jpg',
+    fallback: require('../assets/onboarding-1.jpg'),
     focus: 'top',
     title: 'Seguir cuando\nno puedes más',
     highlight: 'Es lo que te hace diferente',
     rest: 'de los demás.',
   },
   {
-    image: require('../assets/onboarding-2.jpg'),
+    image: 'onboarding-2.jpg',
+    fallback: require('../assets/onboarding-2.jpg'),
     focus: 'center',
     title: 'Tu bici,\ntu lugar',
     highlight: 'Reserva tu clase en segundos.',
     rest: '¿Está llena? Únete a la lista de espera y te avisamos.',
   },
   {
-    image: require('../assets/onboarding-3.jpg'),
+    image: 'onboarding-3.jpg',
+    fallback: require('../assets/onboarding-3.jpg'),
     focus: 'top',
     title: 'Cada clase\ncuenta',
     highlight: 'Suma XP, mantén tu racha',
@@ -72,10 +80,7 @@ export default function Onboarding() {
   return (
     <Screen edges={['top', 'bottom']} style={styles.container}>
       <StatusBar style="light" />
-      <View style={styles.wordmark} accessible accessibilityRole="image" accessibilityLabel="Pulso">
-        <Text style={styles.wordmarkText}>PULSO</Text>
-        <PulseLine mode="once" width={84} height={52} color={GOLD} bg={BLACK} strokeWidth={2.5} duration={1200} style={styles.wordmarkLine} />
-      </View>
+      <Logo width={200} color={IVORY} accent={GOLD} style={styles.logo} />
 
       <FlatList
         ref={list}
@@ -92,7 +97,7 @@ export default function Onboarding() {
             {/* La foto llena el espacio que sobre (se adapta a pantallas altas y
                 bajas sin empujar el texto ni el botón). */}
             <View style={styles.photoArea}>
-              <Image source={item.image} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition={item.focus} transition={400} />
+              <AppImage name={item.image} fallback={item.fallback} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition={item.focus} transition={400} />
               {/* Funde los bordes con el negro: la foto no se ve como un
                   recuadro y el texto parece salir de ella. */}
               <View style={[styles.fade, styles.fadeTop]} />
@@ -136,9 +141,7 @@ export default function Onboarding() {
 
 const styles = StyleSheet.create({
   container: { backgroundColor: BLACK },
-  wordmark: { flexDirection: 'row', alignItems: 'flex-end', alignSelf: 'center', marginTop: 12 },
-  wordmarkText: { fontSize: 46, fontWeight: '900', fontStyle: 'italic', letterSpacing: -1, color: IVORY, includeFontPadding: false },
-  wordmarkLine: { marginLeft: -2, marginBottom: -8 },
+  logo: { alignSelf: 'center', marginTop: 12 },
   photoArea: { flex: 1, marginBottom: 8 },
   fade: { position: 'absolute', left: 0, right: 0 },
   fadeTop: { top: 0, height: '15%', experimental_backgroundImage: `linear-gradient(0deg, rgba(0,0,0,0) 0%, ${BLACK} 100%)` },

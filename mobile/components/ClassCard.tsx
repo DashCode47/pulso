@@ -1,9 +1,10 @@
 import { useState, type ReactNode } from 'react';
 import { View, Pressable, ActivityIndicator, LayoutAnimation, StyleSheet, type ViewStyle } from 'react-native';
 import { Text } from './Text';
-import { CaretDownIcon, CaretUpIcon, CheckIcon, ClockIcon, HourglassIcon, LockIcon, UserIcon, UsersThreeIcon, WarningCircleIcon, XCircleIcon, type Icon } from './icons';
+import { CaretDownIcon, CaretUpIcon, CheckIcon, ClockIcon, HourglassIcon, LockIcon, UsersThreeIcon, WarningCircleIcon, XCircleIcon, type Icon } from './icons';
 import type { ClassWithBikes } from '../features/bookings/useBookings';
 import { BikeGrid } from './BikeGrid';
+import { InstructorAvatar } from './InstructorAvatar';
 import { colors, radius, spacing, type, themed } from '../theme';
 
 interface Props {
@@ -52,52 +53,51 @@ export function ClassCard({ classInfo, busy, locked, onBook, onCancel, onJoinWai
   return (
     <View style={[styles.card, !!bookedBikeId && styles.cardBooked]}>
       <Pressable onPress={toggle} style={({ pressed }) => [styles.header, pressed && styles.headerPressed]}>
-        <View style={styles.timeCol}>
-          <Text style={styles.time}>
-            {new Date(classInfo.startsAt).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })}
-          </Text>
-          <Text style={styles.duration}>{classInfo.durationMinutes} min</Text>
-        </View>
+        <View style={styles.topRow}>
+          <InstructorAvatar
+            name={classInfo.instructorName}
+            photoUrl={classInfo.instructorPhotoUrl}
+            size={72}
+            style={!!bookedBikeId && styles.avatarBooked}
+          />
 
-        <View style={styles.divider} />
-
-        <View style={styles.info}>
-          <View style={styles.titleRow}>
+          <View style={styles.info}>
+            <Text style={styles.time}>
+              {new Date(classInfo.startsAt).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })}
+              <Text style={styles.duration}>  ·  {classInfo.durationMinutes} min</Text>
+            </Text>
             <Text style={styles.title} numberOfLines={1}>
               {classInfo.title}
             </Text>
-            {bookedBikeId ? (
-              <View style={[styles.badge, styles.badgeBooked]}>
-                <CheckIcon size={12} color={colors.onAccent} weight="bold" />
-                <Text style={[styles.badgeText, { color: colors.onAccent }]}>Reservado</Text>
-              </View>
-            ) : myWaitlistEntryId ? (
-              <View style={[styles.badge, styles.badgeOutline]}>
-                <Text style={[styles.badgeText, { color: colors.ink }]}>En espera #{myWaitlistPosition}</Text>
-              </View>
-            ) : isFull ? (
-              <View style={[styles.badge, { backgroundColor: colors.dangerSoft }]}>
-                <Text style={[styles.badgeText, { color: colors.danger }]}>Completa</Text>
-              </View>
-            ) : null}
-          </View>
-
-          <View style={styles.instructorRow}>
-            <UserIcon size={12} color={colors.inkMuted} />
             <Text style={styles.instructor} numberOfLines={1}>
-              {classInfo.instructorName}
+              con {classInfo.instructorName}
             </Text>
           </View>
 
-          <View style={styles.capacityRow}>
-            <View style={styles.track}>
-              <View style={[styles.fill, { width: `${occupancy * 100}%` }, isFull && styles.fillFull]} />
+          {bookedBikeId ? (
+            <View style={[styles.badge, styles.badgeBooked]}>
+              <CheckIcon size={12} color={colors.onAccent} weight="bold" />
+              <Text style={[styles.badgeText, { color: colors.onAccent }]}>Reservado</Text>
             </View>
-            <Text style={styles.capacityText}>
-              {isFull ? 'Sin cupos' : `${availableCount} ${availableCount === 1 ? 'libre' : 'libres'}`}
-            </Text>
-            {expanded ? <CaretUpIcon size={16} color={colors.inkMuted} weight="bold" /> : <CaretDownIcon size={16} color={colors.inkMuted} weight="bold" />}
+          ) : myWaitlistEntryId ? (
+            <View style={[styles.badge, styles.badgeOutline]}>
+              <Text style={[styles.badgeText, { color: colors.ink }]}>En espera #{myWaitlistPosition}</Text>
+            </View>
+          ) : isFull ? (
+            <View style={[styles.badge, { backgroundColor: colors.dangerSoft }]}>
+              <Text style={[styles.badgeText, { color: colors.danger }]}>Completa</Text>
+            </View>
+          ) : null}
+        </View>
+
+        <View style={styles.capacityRow}>
+          <View style={styles.track}>
+            <View style={[styles.fill, { width: `${occupancy * 100}%` }, isFull && styles.fillFull]} />
           </View>
+          <Text style={styles.capacityText}>
+            {isFull ? 'Sin cupos' : `${availableCount} ${availableCount === 1 ? 'libre' : 'libres'}`}
+          </Text>
+          {expanded ? <CaretUpIcon size={16} color={colors.inkMuted} weight="bold" /> : <CaretDownIcon size={16} color={colors.inkMuted} weight="bold" />}
         </View>
       </Pressable>
 
@@ -218,21 +218,18 @@ const styles = themed(() => StyleSheet.create({
     overflow: 'hidden',
   },
   cardBooked: { borderWidth: 1, borderColor: colors.accent },
-  header: { flexDirection: 'row', alignItems: 'center', padding: spacing.lg, gap: spacing.lg },
+  header: { padding: spacing.lg, gap: spacing.md },
   headerPressed: { backgroundColor: colors.surfaceAlt },
+  topRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  avatarBooked: { borderWidth: 2, borderColor: colors.accent },
 
-  timeCol: { width: 52 },
-  time: { fontSize: 17, fontWeight: '800', letterSpacing: -0.4, color: colors.ink, fontVariant: ['tabular-nums'] },
-  duration: { ...type.caption, color: colors.inkMuted, marginTop: 2 },
-  divider: { width: StyleSheet.hairlineWidth, alignSelf: 'stretch', backgroundColor: colors.border },
+  info: { flex: 1, gap: 2 },
+  time: { fontSize: 13, fontWeight: '800', color: colors.ink, fontVariant: ['tabular-nums'] },
+  duration: { fontWeight: '500', color: colors.inkMuted },
+  title: { ...type.h2, color: colors.ink },
+  instructor: { ...type.caption, color: colors.inkSoft },
 
-  info: { flex: 1, gap: 4 },
-  titleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  title: { ...type.h2, color: colors.ink, flexShrink: 1, marginRight: 'auto' },
-  instructorRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  instructor: { ...type.caption, color: colors.inkSoft, flexShrink: 1 },
-
-  capacityRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.xs },
+  capacityRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   track: { flex: 1, height: 3, borderRadius: 2, backgroundColor: colors.surfaceAlt, overflow: 'hidden' },
   fill: { height: '100%', backgroundColor: colors.inkSoft, borderRadius: 2 },
   fillFull: { backgroundColor: colors.danger },
@@ -242,6 +239,7 @@ const styles = themed(() => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 3,
+    alignSelf: 'flex-start',
     borderRadius: radius.pill,
     paddingVertical: 3,
     paddingHorizontal: spacing.sm,

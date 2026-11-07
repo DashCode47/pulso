@@ -7,6 +7,8 @@ export type ClassWithBikes = {
   id: string;
   title: string;
   instructorName: string;
+  // Public URL from the instructor-photos bucket; null = show initials.
+  instructorPhotoUrl: string | null;
   startsAt: string;
   durationMinutes: number;
   capacity: number;
@@ -43,7 +45,7 @@ export async function listUpcomingClasses(): Promise<ClassWithBikes[]> {
   const [classesRes, bikesRes, availabilityRes] = await Promise.all([
     backend
       .from('classes')
-      .select('id, title, instructors(name), starts_at, duration_minutes, capacity')
+      .select('id, title, instructors(name, photo_path), starts_at, duration_minutes, capacity')
       .in('status', ['scheduled', 'completed'])
       .gte('starts_at', startOfToday.toISOString())
       .order('starts_at'),
@@ -57,10 +59,14 @@ export async function listUpcomingClasses(): Promise<ClassWithBikes[]> {
   const availabilityById = new Map(((availabilityRes.data ?? []) as AvailabilityRow[]).map((a) => [a.class_id, a]));
 
   return (classesRes.data ?? []).map((c) => {
+    const instructor = firstEmbed(c.instructors);
     const base = {
       id: c.id,
       title: c.title,
-      instructorName: firstEmbed(c.instructors)?.name ?? '',
+      instructorName: instructor?.name ?? '',
+      instructorPhotoUrl: instructor?.photo_path
+        ? backend.storage.from('instructor-photos').getPublicUrl(instructor.photo_path).data.publicUrl
+        : null,
       startsAt: c.starts_at,
       durationMinutes: c.duration_minutes,
       capacity: c.capacity,

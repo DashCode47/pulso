@@ -17,6 +17,7 @@ import { NewsCarousel } from '../../components/NewsCarousel';
 import { PulseLine } from '../../components/PulseLine';
 import { Screen } from '../../components/Screen';
 import { AvatarRing } from '../../components/AvatarRing';
+import { InstructorAvatar } from '../../components/InstructorAvatar';
 import { colors, radius, spacing, type, themed, useThemeMode } from '../../theme';
 
 export default function Home() {
@@ -124,6 +125,8 @@ function MemberHome() {
     dayLabel: groupClassesByDay([next])[0].label,
     startsAt: new Date(next.startsAt).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' }),
     bikeLabel: next.bikes.find((b) => b.id === next.bookedBikeId)?.label ?? '',
+    instructorName: next.instructorName,
+    instructorPhotoUrl: next.instructorPhotoUrl,
   };
   const firstName = (user?.name ?? user?.email ?? '').split(' ')[0].split('@')[0];
 
@@ -168,6 +171,20 @@ function MemberHome() {
             <Text style={styles.nextClassMeta}>
               {nextClass.dayLabel} · {nextClass.startsAt} · {nextClass.bikeLabel}
             </Text>
+            <View style={styles.nextClassInstructor}>
+              <InstructorAvatar
+                name={nextClass.instructorName}
+                photoUrl={nextClass.instructorPhotoUrl}
+                size={56}
+                style={styles.nextClassAvatar}
+              />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.nextClassInstructorLabel}>Instructor</Text>
+                <Text style={styles.nextClassInstructorName} numberOfLines={1}>
+                  {nextClass.instructorName}
+                </Text>
+              </View>
+            </View>
             <Pressable
               style={({ pressed }) => [styles.viewButton, pressed && styles.pressed]}
               onPress={() => router.push({ pathname: '/(tabs)/bookings', params: { classId: next.id } })}
@@ -290,6 +307,10 @@ const styles = themed(() => StyleSheet.create({
   nextClassLabel: { ...type.eyebrow, color: colors.onAccent, opacity: 0.55 },
   nextClassTitle: { ...type.display, color: colors.onAccent, marginTop: spacing.xs },
   nextClassMeta: { color: colors.onAccent, opacity: 0.7, fontSize: 15, fontWeight: '500' },
+  nextClassInstructor: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginTop: spacing.lg },
+  nextClassAvatar: { borderWidth: 2, borderColor: colors.onAccent },
+  nextClassInstructorLabel: { ...type.eyebrow, fontSize: 10, color: colors.onAccent, opacity: 0.55 },
+  nextClassInstructorName: { ...type.h2, color: colors.onAccent, marginTop: 2 },
   viewButton: {
     flexDirection: 'row',
     backgroundColor: colors.onAccent,

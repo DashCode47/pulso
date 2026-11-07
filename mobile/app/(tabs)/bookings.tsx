@@ -3,6 +3,7 @@ import { View, Pressable, ScrollView, StyleSheet } from 'react-native';
 import { Text } from '../../components/Text';
 import { CalendarBlankIcon, CalendarCheckIcon, CaretRightIcon, CheckIcon, ClockIcon, CloudSlashIcon, ExclamationMarkIcon, LockIcon, MoonIcon, type Icon } from '../../components/icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   useUpcomingClasses,
   groupClassesByWeekday,
@@ -18,6 +19,8 @@ import {
   membershipBlockMessage,
 } from '../../features/bookings/errorMessages';
 import { ClassCard } from '../../components/ClassCard';
+import { InstructorAvatar } from '../../components/InstructorAvatar';
+import { AppImage } from '../../components/AppImage';
 import { Screen } from '../../components/Screen';
 import { showAlert } from '../../components/Dialog';
 import { PulseLine } from '../../components/PulseLine';
@@ -34,6 +37,7 @@ export default function Bookings() {
   const [selectedDayKey, setSelectedDayKey] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
   const [busyClassId, setBusyClassId] = useState<string | null>(null);
+  const insets = useSafeAreaInsets();
 
   // Success toasts clear themselves; errors stay until tapped.
   useEffect(() => {
@@ -123,8 +127,17 @@ export default function Bookings() {
   const classCount = selectedDay?.classes.length ?? 0;
 
   return (
-    <Screen style={styles.container}>
-      <View style={styles.header}>
+    <Screen edges={[]}>
+      {/* Hero a sangre bajo la barra de estado; el degradado lo funde con el fondo. */}
+      <View style={[styles.hero, { paddingTop: insets.top + HERO_HEIGHT }]}>
+        <AppImage
+          name="bookings-hero.jpg"
+          fallback={require('../../assets/onboarding-1.jpg')}
+          style={StyleSheet.absoluteFill}
+          contentFit="cover"
+          contentPosition="center"
+        />
+        <View style={[StyleSheet.absoluteFill, styles.heroScrim]} />
         <Text style={styles.eyebrow}>
           Semana · {shortDate(days[0].key)} – {shortDate(days[days.length - 1].key)}
         </Text>
@@ -283,13 +296,13 @@ function StartedClassRow({ classInfo, first }: { classInfo: ClassWithBikes; firs
   const inProgress = Date.now() < startsAt.getTime() + classInfo.durationMinutes * 60_000;
   return (
     <View style={[styles.startedRow, !first && styles.startedRowDivider]}>
-      <Text style={styles.startedTime}>{startsAt.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })}</Text>
+      <InstructorAvatar name={classInfo.instructorName} photoUrl={classInfo.instructorPhotoUrl} size={32} style={styles.startedAvatar} />
       <View style={{ flex: 1 }}>
         <Text style={styles.startedTitle} numberOfLines={1}>
           {classInfo.title}
         </Text>
         <Text style={styles.startedMeta} numberOfLines={1}>
-          {classInfo.instructorName}
+          {startsAt.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })} · {classInfo.instructorName}
         </Text>
       </View>
       <View style={styles.startedBadge}>
@@ -331,13 +344,17 @@ function isSunday() {
   return new Date().getDay() === 0;
 }
 
+const HERO_HEIGHT = 120;
+
 const styles = themed(() => StyleSheet.create({
-  container: { paddingTop: spacing.sm },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.sm, padding: spacing.xxl },
   pressed: { transform: [{ scale: 0.97 }], opacity: 0.9 },
 
-  header: { paddingHorizontal: spacing.xxl },
-  eyebrow: { ...type.eyebrow, color: colors.inkMuted, marginBottom: spacing.xs },
+  hero: { paddingHorizontal: spacing.xxl, paddingBottom: spacing.xs, overflow: 'hidden' },
+  heroScrim: {
+    experimental_backgroundImage: `linear-gradient(180deg, rgba(${colors.bgRgb},0.35) 0%, rgba(${colors.bgRgb},0.15) 35%, rgba(${colors.bgRgb},0.75) 75%, ${colors.bg} 100%)`,
+  },
+  eyebrow: { ...type.eyebrow, color: colors.inkSoft, marginBottom: spacing.xs },
   title: { ...type.title, color: colors.ink },
 
   days: { flexDirection: 'row', gap: 6, paddingHorizontal: spacing.xxl, marginTop: spacing.xl, marginBottom: spacing.sm },
@@ -415,7 +432,7 @@ const styles = themed(() => StyleSheet.create({
   },
   startedRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg, paddingVertical: spacing.md, paddingHorizontal: spacing.lg },
   startedRowDivider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
-  startedTime: { width: 52, color: colors.inkMuted, fontWeight: '700', fontSize: 14, fontVariant: ['tabular-nums'] },
+  startedAvatar: { opacity: 0.5 },
   startedTitle: { color: colors.inkSoft, fontWeight: '600', fontSize: 14 },
   startedMeta: { ...type.caption, color: colors.inkMuted },
   startedBadge: { flexDirection: 'row', alignItems: 'center', gap: 6 },
