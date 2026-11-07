@@ -4,7 +4,7 @@ import { LEGAL_LINKS } from '../../lib/legal';
 import { Text, TextInput } from '../../components/Text';
 import { Link } from 'expo-router';
 import { useAuth } from '../../features/auth/useAuth';
-import { Screen } from '../../components/Screen';
+import { AuthScreen } from '../../features/auth/AuthScreen';
 import { Wordmark } from '../../components/Wordmark';
 import { PasswordInput } from '../../features/auth/PasswordInput';
 import { authStyles as styles } from '../../features/auth/styles';
@@ -32,7 +32,7 @@ export default function SignUp() {
   }
 
   return (
-    <Screen edges={['top', 'bottom']} style={styles.container}>
+    <AuthScreen>
       <Wordmark />
       <Text style={styles.subtitle}>Crea tu cuenta</Text>
       <TextInput
@@ -73,6 +73,6 @@ export default function SignUp() {
           ¿Ya tienes cuenta? <Text style={styles.linkStrong}>Entra</Text>
         </Text>
       </Link>
-    </Screen>
+    </AuthScreen>
   );
 }

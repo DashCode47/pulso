@@ -4,7 +4,10 @@ import { colors, radius, spacing, type, themed } from '../../theme';
 // Compartido por sign-in y sign-up (fuera de app/ para que expo-router no lo
 // tome como ruta).
 export const authStyles = themed(() => StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center', padding: spacing.xxl, gap: spacing.md, backgroundColor: colors.bg },
+  screen: { flex: 1, backgroundColor: colors.bg },
+  // contentContainerStyle del ScrollView: flexGrow (no flex) para que centre
+  // cuando cabe y haga scroll cuando el teclado reduce el espacio.
+  container: { flexGrow: 1, justifyContent: 'center', padding: spacing.xxl, gap: spacing.md },
   title: { ...type.title, color: colors.ink, textAlign: 'center' },
   subtitle: { ...type.eyebrow, color: colors.inkMuted, textAlign: 'center', marginTop: spacing.sm, marginBottom: spacing.xxl },
   body: { ...type.body, color: colors.inkSoft, textAlign: 'center' },
