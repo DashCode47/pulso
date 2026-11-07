@@ -37,6 +37,9 @@ function useScreenTracking() {
   const segments = useSegments() as string[];
   const screen = segments.filter((s) => !s.startsWith('(')).join('/') || 'index';
   useEffect(() => {
+    // app/index.tsx is an invisible redirect (home / sign-in / onboarding):
+    // not a screen anyone sees, and it would add a fake step to every flow.
+    if (screen === 'index') return;
     track('Screen Viewed', { screen });
   }, [screen]);
 }
