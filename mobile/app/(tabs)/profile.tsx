@@ -49,11 +49,17 @@ export default function Profile() {
   });
   const [tab, setTab] = useState<'upcoming' | 'past'>('upcoming');
   // Both keys start with 'my-history' so booking actions invalidate them together.
-  const { data: upcoming = [], isLoading: loadingUpcoming } = useQuery({
+  // Polled like Home's classes query; dataUpdatedAt is read so every poll
+  // re-renders and `now` moves forward (hides started classes and expired
+  // Cancel buttons even when the server data is unchanged).
+  const { data: upcomingRaw = [], isLoading: loadingUpcoming, dataUpdatedAt } = useQuery({
     queryKey: ['my-history', 'upcoming'],
     queryFn: () => backend.listMyHistory('upcoming'),
     enabled: !isAdmin,
+    refetchInterval: 30_000,
   });
+  const now = Math.max(Date.now(), dataUpdatedAt);
+  const upcoming = upcomingRaw.filter((e) => new Date(e.startsAt).getTime() > now);
   const pastQuery = useInfiniteQuery({
     queryKey: ['my-history', 'past'],
     queryFn: ({ pageParam }) => backend.listMyHistory('past', pageParam),
@@ -217,17 +223,19 @@ export default function Profile() {
                               {d.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })}
                             </Text>
                           </View>
-                          <Pressable
-                            style={styles.cancelUpcomingButton}
-                            disabled={cancellingId === entry.id}
-                            onPress={() => confirmCancel(entry)}
-                          >
-                            {cancellingId === entry.id ? (
-                              <ActivityIndicator size="small" color={colors.danger} />
-                            ) : (
-                              <Text style={styles.cancelUpcomingButtonText}>Cancelar</Text>
-                            )}
-                          </Pressable>
+                          {entry.cancelDeadline && now < new Date(entry.cancelDeadline).getTime() && (
+                            <Pressable
+                              style={styles.cancelUpcomingButton}
+                              disabled={cancellingId === entry.id}
+                              onPress={() => confirmCancel(entry)}
+                            >
+                              {cancellingId === entry.id ? (
+                                <ActivityIndicator size="small" color={colors.danger} />
+                              ) : (
+                                <Text style={styles.cancelUpcomingButtonText}>Cancelar</Text>
+                              )}
+                            </Pressable>
+                          )}
                         </View>
                       );
                     })}

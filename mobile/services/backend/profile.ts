@@ -101,6 +101,8 @@ export type MyHistoryEntry = {
   classTitle: string;
   startsAt: string;
   status: 'booked' | 'cancelled' | 'attended' | 'no_show';
+  // upcoming only: the server rejects cancellations after this instant.
+  cancelDeadline?: string;
 };
 
 export const HISTORY_PAGE_SIZE = 10;
@@ -111,22 +113,48 @@ export async function listMyHistory(kind: 'upcoming' | 'past', page = 0): Promis
   const userId = await currentUserId();
   if (!userId) return [];
 
+  if (kind === 'upcoming') {
+    // Same rule as Home (class_availability): a booking stops being "upcoming"
+    // once its class starts, even before an admin marks attendance.
+    const [res, settings] = await Promise.all([
+      backend
+        .from('reservations')
+        .select('id, status, classes!inner(title, starts_at)')
+        .eq('user_id', userId)
+        .eq('status', 'booked')
+        .gt('classes.starts_at', new Date().toISOString()),
+      backend.from('studio_settings').select('cancellation_cutoff_hours').eq('id', true).single(),
+    ]);
+    if (res.error) throw res.error;
+    if (settings.error) throw settings.error;
+    const cutoffMs = settings.data.cancellation_cutoff_hours * 3_600_000;
+    return (res.data ?? [])
+      .map((r) => {
+        const c = firstEmbed(r.classes);
+        const startsAt = c?.starts_at ?? '';
+        return {
+          id: r.id,
+          classTitle: c?.title ?? 'Clase eliminada',
+          startsAt,
+          status: r.status,
+          cancelDeadline: new Date(new Date(startsAt).getTime() - cutoffMs).toISOString(),
+        };
+      })
+      .sort((a, b) => a.startsAt.localeCompare(b.startsAt)); // a member has a handful of active bookings
+  }
+
   // One request: the class comes embedded instead of a second lookup.
-  let query = backend.from('reservations').select('id, status, classes(title, starts_at)').eq('user_id', userId);
-  query =
-    kind === 'upcoming'
-      ? query.eq('status', 'booked')
-      : query
-          .neq('status', 'booked')
-          .order('created_at', { ascending: false })
-          .range(page * HISTORY_PAGE_SIZE, (page + 1) * HISTORY_PAGE_SIZE - 1);
-  const { data, error } = await query;
+  const { data, error } = await backend
+    .from('reservations')
+    .select('id, status, classes(title, starts_at)')
+    .eq('user_id', userId)
+    .neq('status', 'booked')
+    .order('created_at', { ascending: false })
+    .range(page * HISTORY_PAGE_SIZE, (page + 1) * HISTORY_PAGE_SIZE - 1);
   if (error) throw error;
 
-  const entries: MyHistoryEntry[] = (data ?? []).map((r) => {
+  return (data ?? []).map((r) => {
     const c = firstEmbed(r.classes);
     return { id: r.id, classTitle: c?.title ?? 'Clase eliminada', startsAt: c?.starts_at ?? '', status: r.status };
   });
-  // ponytail: sorted client-side (a member has a handful of active bookings).
-  return kind === 'upcoming' ? entries.sort((a, b) => a.startsAt.localeCompare(b.startsAt)) : entries;
 }
