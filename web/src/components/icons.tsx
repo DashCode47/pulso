@@ -76,3 +76,13 @@ export function LogoutIcon({ className = "h-4 w-4" }: IconProps) {
     </svg>
   );
 }
+
+export function TrophyIcon({ className = "h-4 w-4" }: IconProps) {
+  return (
+    <svg viewBox="0 0 20 20" className={className} {...base}>
+      <path d="M6 3.5h8v4a4 4 0 0 1-8 0v-4Z" />
+      <path d="M6 5H3.5v1a2.5 2.5 0 0 0 2.6 2.5M14 5h2.5v1a2.5 2.5 0 0 1-2.6 2.5" />
+      <path d="M10 11.5v3M7 16.5h6" />
+    </svg>
+  );
+}

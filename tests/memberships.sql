@@ -1,8 +1,8 @@
 -- Regression check for the membership rules (see
 -- supabase/migrations/*membership-rules.sql and *bogota-time-and-achievements.sql):
 -- paid-period booking gate in Bogota dates, credits that don't roll over,
--- double-renewal guard, cancel/expiry releasing bookings, no-show undoing XP
--- and achievements, the one-time cleanup of legacy bookings, and the general
+-- double-renewal guard, cancel/expiry releasing bookings, no-show undoing the
+-- class XP (achievements stay, see *configurable-achievements.sql), the one-time cleanup of legacy bookings, and the general
 -- ranking with its "overtaken" notifications (see *general-leaderboard.sql).
 --
 -- Run locally (after `npx supabase db reset`):
@@ -237,7 +237,7 @@ BEGIN
     'renewal reactivates an expired membership');
   PERFORM pg_temp.ok(pg_temp.balance(v_eva) = 10, 'renewal grants the plan credits');
 
-  -- 7. no-show on an auto-attended class undoes its XP and achievements ----------
+  -- 7. no-show on an auto-attended class undoes its class XP; achievements stay --
   v_class := pg_temp.new_class(v_today - 1, '07:00');
   INSERT INTO reservations (class_id, user_id, bike_id) VALUES (v_class, v_ana, v_t1) RETURNING id INTO v_res;
   PERFORM close_finished_classes();
@@ -248,8 +248,8 @@ BEGIN
   PERFORM pg_temp.fails_with(v_ana, format('select mark_no_show(%L)', v_res), 'not_authorized');
   PERFORM pg_temp.run_as(v_admin, format('select mark_no_show(%L)', v_res));
   PERFORM pg_temp.ok(pg_temp.reservation_status(v_class, v_ana) = 'no_show', 'reservation is a no-show');
-  PERFORM pg_temp.ok(NOT pg_temp.has_achievement(v_ana, 'first_ride'), 'no-show revokes the achievement it unlocked');
-  PERFORM pg_temp.ok(pg_temp.xp(v_ana) = 0, 'no-show reverts class and achievement XP');
+  PERFORM pg_temp.ok(pg_temp.has_achievement(v_ana, 'first_ride'), 'achievements are permanent: no-show keeps first_ride');
+  PERFORM pg_temp.ok(pg_temp.xp(v_ana) = 100, 'no-show reverts the class XP only, achievement XP stays');
   PERFORM pg_temp.ok((SELECT classes_completed FROM user_stats WHERE user_id = v_ana) = 0, 'no-show is not a completed class');
   PERFORM pg_temp.fails_with(v_admin, format('select mark_no_show(%L)', v_res), 'reservation_not_markable');
 
@@ -285,7 +285,8 @@ BEGIN
   INSERT INTO xp_transactions (user_id, amount, type) VALUES (v_caro, 100, 'weekly_goal');
   PERFORM pg_temp.ok((SELECT xp FROM leaderboard WHERE user_id = v_caro) = pg_temp.xp(v_caro),
     'ranking uses total XP, bonuses included');
-  PERFORM pg_temp.ok(NOT EXISTS (SELECT 1 FROM leaderboard WHERE user_id IN (v_admin, v_beto, v_ana)),
+  -- (fran: active, never attended; ana keeps her first_ride XP after the no-show, so she is ranked)
+  PERFORM pg_temp.ok(NOT EXISTS (SELECT 1 FROM leaderboard WHERE user_id IN (v_admin, v_beto, v_fran)),
     'admins, cancelled members and members without XP are not ranked');
   PERFORM pg_temp.run_as(v_ana, 'select count(*) from leaderboard');
 
@@ -309,7 +310,7 @@ BEGIN
   PERFORM check_achievements(v_caro);
   PERFORM check_achievements(v_ana);
   PERFORM pg_temp.ok(pg_temp.has_achievement(v_caro, 'top_5'), 'a Top 5 member earns top_5');
-  PERFORM pg_temp.ok(NOT pg_temp.has_achievement(v_ana, 'top_5'), 'an unranked member does not');
+  PERFORM pg_temp.ok(NOT pg_temp.has_achievement(v_ana, 'top_5'), 'a member outside the Top 5 does not');
 
   RAISE NOTICE 'membership tests passed';
 END;

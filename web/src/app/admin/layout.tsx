@@ -4,12 +4,13 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Logo } from '@/components/logo';
-import { BellIcon, CalendarIcon, ImageIcon, LogoutIcon, RepeatIcon, SettingsIcon, UsersIcon } from '@/components/icons';
+import { BellIcon, CalendarIcon, ImageIcon, LogoutIcon, RepeatIcon, SettingsIcon, TrophyIcon, UsersIcon } from '@/components/icons';
 
 const navItems = [
   { href: '/admin/classes', label: 'Clases', icon: CalendarIcon },
   { href: '/admin/schedule', label: 'Horario semanal', icon: RepeatIcon },
   { href: '/admin/members', label: 'Miembros', icon: UsersIcon },
+  { href: '/admin/achievements', label: 'Logros', icon: TrophyIcon },
   { href: '/admin/news', label: 'Noticias', icon: ImageIcon },
   { href: '/admin/notifications', label: 'Notificaciones', icon: BellIcon },
 ];

@@ -29,13 +29,13 @@ Todo está en `supabase/migrations/`, que se aplican en orden. Cada migración e
 | `reservations` | `booked` → `cancelled` \| `attended` \| `no_show` |
 | `waitlist_entries` | Lista de espera ([reservas.md](reservas.md)) |
 | `studio_settings` | Fila única de configuración (`cancellation_cutoff_hours`) |
-| `achievements`, `user_achievements` | Logros |
+| `achievements`, `user_achievements` | Logros configurables desde el admin (regla + números + fechas). Ver *Logros* abajo |
 | `notifications` | Log de notificaciones (todavía no se envían como push) |
 | `news` | Banners del carrusel del Home ([ui.md](ui.md)). Los miembros leen las `active`; solo el admin escribe |
 
 ## RPCs
 
-**Miembros:** `class_availability`, `book_class`, `cancel_reservation`, `join_waitlist`, `leave_waitlist`.
+**Miembros:** `class_availability`, `book_class`, `cancel_reservation`, `join_waitlist`, `leave_waitlist`, `my_achievements` (logros visibles con su progreso).
 
 **Admin** (chequean `is_admin()`):
 
@@ -47,11 +47,11 @@ Todo está en `supabase/migrations/`, que se aplican en orden. Cada migración e
 | `admin_adjust_credits` | Ajuste manual (+/-) con nota; el saldo no puede quedar negativo |
 | `admin_update_class` | Edita una clase; si cambia el horario, notifica a los reservados |
 | `admin_cancel_class` | Cancela la clase, reembolsa y notifica |
-| `mark_no_show` | Marca no-show (también sobre una reserva ya auto-marcada como asistida; revierte su XP) |
+| `mark_no_show` | Marca no-show (también sobre una reserva ya auto-marcada como asistida; revierte los 100 XP de la clase, nunca los de logros) |
 | `admin_save_class_template` | Crea/edita/desactiva una plantilla y re-sincroniza sus clases futuras |
 | `search_members` | Lista de miembros con saldo y estado de membresía |
 
-El CRUD simple de `classes`, `instructors` y `bikes` va directo por tabla (la RLS lo permite solo a admins). Las plantillas se escriben solo con `admin_save_class_template` (ver [clases.md](clases.md)).
+El CRUD simple de `classes`, `instructors`, `bikes` y `achievements` va directo por tabla (la RLS lo permite solo a admins). Las plantillas se escriben solo con `admin_save_class_template` (ver [clases.md](clases.md)).
 
 ## Créditos y membresías
 
@@ -67,7 +67,28 @@ El CRUD simple de `classes`, `instructors` y `bikes` va directo por tabla (la RL
 - No hay check-in. Al terminar la clase, toda reserva `booked` pasa a `attended` automáticamente y otorga 100 XP. El admin solo marca las excepciones (`mark_no_show`).
 - Nivel = 500 XP por nivel (`xp_to_level`).
 - Ranking (`leaderboard`): uno solo, histórico, ordenado por XP total (el mismo que define el nivel; cuentan clases, bonos y logros). Solo miembros con membresía activa y XP > 0; los empatados comparten puesto. Quien baja de puesto sin haber perdido XP recibe la notificación "Te superaron en el ranking" (`notify_overtaken`, compara contra `leaderboard_snapshot`).
-- Rachas semanales: se cumplen al alcanzar el `weekly_goal` de la membresía. Hay logros por cantidad de clases, rachas y horario.
+- Rachas semanales: se cumplen al alcanzar el `weekly_goal` de la membresía.
+
+### Logros
+
+Se crean en el admin (**Logros**). Cada logro elige una regla de una lista fija y pone sus números, así que puede haber varios con la misma regla ("1 clase", "20 clases"):
+
+| Regla | Números |
+|---|---|
+| `classes_total` | N clases |
+| `classes_before_hour` / `classes_from_hour` | N clases que empiezan antes de / desde `hour` (Bogotá) |
+| `classes_with_instructor` | N clases con `instructor_id` |
+| `distinct_instructors` | N instructores distintos |
+| `classes_on_weekday` | N clases en `weekday` (1 = lunes) |
+| `classes_in_week` | N clases en una misma semana |
+| `streak_weeks` | N semanas seguidas cumpliendo el objetivo semanal |
+| `leaderboard_top` | Estar en el Top N del ranking |
+
+- **Fechas** (días de Bogotá, incluidos): `starts_on` null = "desde siempre" (cuenta todo el historial); con fecha, solo cuentan clases desde ese día y el logro está oculto hasta entonces. `ends_on` opcional = logro por tiempo limitado: después desaparece para quien no lo ganó.
+- Racha con fechas: semanas seguidas (ya terminadas) dentro del rango, con el `weekly_goal` actual. Sin fechas usa la racha de `user_stats` (la mejor histórica). Ranking con fechas: solo se gana mientras hoy esté dentro del rango.
+- Una sola implementación de las reglas: `achievement_progress(user)`. La usan `check_achievements` (desbloquea + XP + notificación push) y `my_achievements` (barras de progreso en la app).
+- Se revisan al terminar cada clase, en el job de rachas del lunes y, para todos los miembros, cada vez que el admin crea o edita un logro.
+- **El XP de logros es permanente**: un no-show no lo quita. Un logro que alguien ya desbloqueó no se puede editar (`achievement_locked`). Eliminar es un soft delete (`deleted_at`): desaparece para todos, el XP se queda, y no se puede restaurar.
 
 ## Cron jobs (pg_cron)
 
@@ -91,7 +112,9 @@ Horas del estudio: las plantillas se interpretan en `America/Bogota` (ver `20260
 npx supabase db query --linked --file tests/smoke.sql
 ```
 
-`tests/memberships.sql` cubre las reglas de membresías: reservas solo dentro del período pagado (fechas de Bogotá), créditos que no se acumulan, doble renovación, cancelación y vencimiento liberando reservas, no-show que revierte XP y logros, y la limpieza de reservas heredadas.
+`tests/achievements.sql` cubre los logros configurables: "desde siempre" vs con fecha, cada tipo de regla, logros por tiempo limitado, ocultos hasta su fecha, bloqueo de edición, eliminación que conserva el XP y permisos.
+
+`tests/memberships.sql` cubre las reglas de membresías: reservas solo dentro del período pagado (fechas de Bogotá), créditos que no se acumulan, doble renovación, cancelación y vencimiento liberando reservas, no-show que revierte el XP de la clase (los logros se quedan), y la limpieza de reservas heredadas.
 
 Para correr todo localmente (Docker) sin tocar producción:
 
@@ -100,6 +123,7 @@ npx supabase start
 npx supabase db reset --local   # aplica todas las migraciones a la base local
 psql postgresql://postgres:postgres@127.0.0.1:54322/postgres -v ON_ERROR_STOP=1 -f tests/smoke.sql
 psql postgresql://postgres:postgres@127.0.0.1:54322/postgres -v ON_ERROR_STOP=1 -f tests/memberships.sql
+psql postgresql://postgres:postgres@127.0.0.1:54322/postgres -v ON_ERROR_STOP=1 -f tests/achievements.sql
 ```
 
 Para probar una migración **antes** de aplicarla, arma un archivo con `BEGIN;` + la migración + el cuerpo del smoke test + `ROLLBACK;` y córrelo con el mismo comando.

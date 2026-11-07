@@ -6,15 +6,22 @@ import {
   ArrowCircleUpIcon,
   ArrowRightIcon,
   BicycleIcon,
+  CalendarCheckIcon,
   CheckIcon,
+  ClockIcon,
   FireIcon,
-  LockIcon,
+  FlagIcon,
+  LightningIcon,
+  MedalIcon,
+  MoonIcon,
   RankingIcon,
+  SunIcon,
   TrophyIcon,
+  UsersThreeIcon,
   type Icon,
 } from '../../components/icons';
 import { useMyProgress, weeklyGoalHint, XP_PER_LEVEL } from '../../features/progress/useMyProgress';
-import type { MyProgress } from '../../services/backend';
+import type { AchievementIcon, MyAchievement } from '../../services/backend';
 import { ProgressBar } from '../../components/ProgressBar';
 import { FadeIn } from '../../components/FadeIn';
 import { Screen } from '../../components/Screen';
@@ -29,18 +36,31 @@ const statIcons = {
   rank: RankingIcon,
 };
 
-// Targets mirror earned_achievements() in the backend. early_bird/night_rider
-// need per-hour counts the app doesn't load, so they show no bar.
-function achievementProgress(code: string, p: MyProgress): { current: number; target: number } | null {
-  const targets: Record<string, [number, number]> = {
-    first_ride: [p.classesCompleted, 1],
-    ten_rides: [p.classesCompleted, 10],
-    twenty_rides: [p.classesCompleted, 20],
-    consistent: [p.currentStreakWeeks, 4],
-    on_fire: [p.currentStreakWeeks, 7],
-  };
-  const t = targets[code];
-  return t ? { current: Math.min(t[0], t[1]), target: t[1] } : null;
+// Icon set the admin picks from (achievements.icon in the backend).
+const achievementIcons: Record<AchievementIcon, Icon> = {
+  trophy: TrophyIcon,
+  medal: MedalIcon,
+  bicycle: BicycleIcon,
+  fire: FireIcon,
+  flag: FlagIcon,
+  lightning: LightningIcon,
+  sun: SunIcon,
+  moon: MoonIcon,
+  ranking: RankingIcon,
+  users: UsersThreeIcon,
+  calendar: CalendarCheckIcon,
+  clock: ClockIcon,
+};
+
+const shortDate = (isoDate: string) =>
+  new Date(isoDate + 'T00:00:00').toLocaleDateString('es', { day: 'numeric', month: 'short' }).replace('.', '');
+
+// Dated cards say so, so long-time members know why older classes don't count.
+function achievementWindow(a: MyAchievement): string | null {
+  if (a.startsOn && a.endsOn) return `Del ${shortDate(a.startsOn)} al ${shortDate(a.endsOn)}`;
+  if (a.startsOn) return `Desde el ${shortDate(a.startsOn)}`;
+  if (a.endsOn) return `Hasta el ${shortDate(a.endsOn)}`;
+  return null;
 }
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
@@ -169,20 +189,18 @@ export default function Progress() {
         </FadeIn>
         <View style={styles.achievementsGrid}>
           {p.achievements.map((a, i) => {
-            const prog = a.unlocked ? null : achievementProgress(a.code, p);
+            const prog = a.unlocked ? null : a.progress;
+            const CardIcon = achievementIcons[a.icon] ?? TrophyIcon;
+            const dateRange = achievementWindow(a);
             return (
               <FadeIn
-                key={a.code}
+                key={a.id}
                 delay={420 + Math.min(i, 8) * 50}
                 style={[styles.achievement, a.unlocked && styles.achievementUnlocked]}
               >
                 <View style={styles.achievementTop}>
                   <View style={[styles.achievementIconWrap, a.unlocked && styles.achievementIconWrapUnlocked]}>
-                    {a.unlocked ? (
-                      <TrophyIcon size={16} color={colors.onAccent} weight="fill" />
-                    ) : (
-                      <LockIcon size={16} color={colors.inkMuted} weight="fill" />
-                    )}
+                    <CardIcon size={16} color={a.unlocked ? colors.onAccent : colors.inkMuted} weight="fill" />
                   </View>
                   <View style={[styles.xpPill, a.unlocked && styles.xpPillUnlocked]}>
                     {a.unlocked && <CheckIcon size={12} color={colors.success} weight="bold" />}
@@ -191,6 +209,7 @@ export default function Progress() {
                 </View>
                 <Text style={[styles.achievementName, !a.unlocked && styles.achievementNameLocked]}>{a.name}</Text>
                 <Text style={styles.achievementDescription}>{a.description}</Text>
+                {dateRange && <Text style={styles.achievementWindow}>{dateRange}</Text>}
                 {prog && (
                   <View style={styles.achievementProgress}>
                     <View style={styles.miniTrack}>
@@ -344,6 +363,7 @@ const styles = themed(() => StyleSheet.create({
   achievementName: { fontSize: 15, fontWeight: '700', color: colors.ink },
   achievementNameLocked: { color: colors.inkSoft },
   achievementDescription: { ...type.caption, color: colors.inkMuted },
+  achievementWindow: { ...type.caption, fontSize: 11, color: colors.inkSoft, fontWeight: '600' },
   achievementProgress: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.xs },
   miniTrack: { flex: 1, height: 3, borderRadius: 2, backgroundColor: colors.surfaceAlt, overflow: 'hidden' },
   miniFill: { height: '100%', backgroundColor: colors.inkSoft },

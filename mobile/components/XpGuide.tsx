@@ -15,12 +15,12 @@ import { XP_PER_LEVEL } from '../features/progress/useMyProgress';
 import { colors, radius, spacing, type, themed } from '../theme';
 
 // ponytail: amounts mirror the SQL (complete_class, update_weekly_streaks,
-// achievements.xp_reward, mark_no_show); move to a view if they start changing.
+// mark_no_show; achievement XP is per card, 100 is the usual); move to a view if they start changing.
 const RULES = [
   { icon: BicycleIcon, title: 'Asiste a una clase', hint: 'Se suma al terminar la clase', xp: 100 },
   { icon: FlagIcon, title: 'Cumple tu objetivo semanal', hint: 'Se paga el lunes', xp: 100 },
   { icon: FireIcon, title: 'Mantén tu racha', hint: 'Desde la 2ª semana seguida', xp: 50 },
-  { icon: TrophyIcon, title: 'Desbloquea un logro', hint: 'Cada logro, una vez', xp: 100 },
+  { icon: TrophyIcon, title: 'Desbloquea un logro', hint: 'Cada logro una vez · el XP varía por logro', xp: 100 },
   { icon: XCircleIcon, title: 'Faltar a una reserva', hint: 'Se descuenta la clase', xp: -100 },
 ] as const;
 
