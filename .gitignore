@@ -27,3 +27,6 @@
 promo/
 pulso-promo-hf/
 pulso-promo-v2/
+
+# macOS
+.DS_Store
