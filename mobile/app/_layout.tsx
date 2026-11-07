@@ -1,7 +1,7 @@
 import 'react-native-url-polyfill/auto';
 import 'react-native-get-random-values';
 import { QueryClientProvider } from '@tanstack/react-query';
-import { Stack, ThemeProvider, DarkTheme, DefaultTheme } from 'expo-router';
+import { Stack, ThemeProvider, DarkTheme, DefaultTheme, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 import { Image } from 'expo-image';
@@ -12,6 +12,7 @@ import { useAuthStore } from '../features/auth/store';
 import { useSessionHydration } from '../features/auth/useAuth';
 import { colors, useThemeMode } from '../theme';
 import { DialogHost } from '../components/Dialog';
+import { track } from '../lib/analytics';
 
 // Sin DSN (dev local) el SDK queda deshabilitado.
 Sentry.init({
@@ -30,7 +31,29 @@ Notifications.setNotificationHandler({
   }),
 });
 
+// One "Screen Viewed" per route ("home", "bookings", "news/[id]"...); route
+// groups like (tabs) are dropped, dynamic params stay as their [name].
+function useScreenTracking() {
+  const segments = useSegments() as string[];
+  const screen = segments.filter((s) => !s.startsWith('(')).join('/') || 'index';
+  useEffect(() => {
+    track('Screen Viewed', { screen });
+  }, [screen]);
+}
+
+// Which pushes actually bring people back into the app.
+function usePushOpenTracking() {
+  useEffect(() => {
+    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
+      track('Push Opened', { title: response.notification.request.content.title ?? null });
+    });
+    return () => sub.remove();
+  }, []);
+}
+
 function RootNavigator() {
+  useScreenTracking();
+  usePushOpenTracking();
   const user = useAuthStore((s) => s.user);
   const loading = useAuthStore((s) => s.loading);
   // Mínimo de 2 s en el splash para que se alcance a ver, aunque la sesión cargue antes.

@@ -3,6 +3,7 @@ import * as backendAuth from '../../services/backend';
 import { useAuthStore } from './store';
 import { queryClient } from '../../lib/queryClient';
 import { registerForPushNotifications } from '../notifications/registerForPush';
+import * as analytics from '../../lib/analytics';
 
 // Runs once from the root layout to hydrate session state on app launch,
 // then keeps it in sync (token refresh, sign-out from another tab/device).
@@ -17,6 +18,7 @@ export function useSessionHydration() {
     async function syncAdmin(user: Awaited<ReturnType<typeof backendAuth.restoreSession>>) {
       const admin = user ? await backendAuth.isAdmin() : false;
       if (!cancelled) setIsAdmin(admin);
+      if (user) analytics.identify(user, admin);
     }
 
     backendAuth.restoreSession().then(async (user) => {
@@ -57,6 +59,7 @@ export function useAuth() {
       if (user) {
         setUser(user);
         setIsAdmin(await backendAuth.isAdmin());
+        analytics.track('Signed In');
       }
       return { error };
     },
@@ -65,11 +68,14 @@ export function useAuth() {
       if (user) {
         setUser(user);
         setIsAdmin(await backendAuth.isAdmin());
+        analytics.track('Signed Up');
       }
       // No session without an error means "Confirm email" is still on in the Supabase dashboard.
       return { error: error ?? (user ? null : new Error('No se pudo iniciar sesión tras el registro.')) };
     },
     async signOut() {
+      analytics.track('Signed Out');
+      analytics.resetIdentity();
       await backendAuth.signOut();
       setUser(null);
       setIsAdmin(false);

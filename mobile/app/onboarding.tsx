@@ -10,6 +10,7 @@ import { Text } from '../components/Text';
 import { Logo } from '../components/Logo';
 import { FadeIn } from '../components/FadeIn';
 import { useOnboarding } from '../features/onboarding/store';
+import { track } from '../lib/analytics';
 
 // Bienvenida de marca, una sola vez por instalación. Siempre negra con dorado,
 // sin importar el tema elegido.
@@ -67,6 +68,7 @@ export default function Onboarding() {
   const isLast = index === SLIDES.length - 1;
 
   function go(href: Href) {
+    track('Onboarding Finished', { destination: String(href), slides_seen: index + 1, of: SLIDES.length });
     finish();
     router.replace(href);
   }

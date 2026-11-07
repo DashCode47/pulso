@@ -21,6 +21,7 @@
     "expo-router": "~57.0.23",
     "expo-secure-store": "~57.0.4",
     "expo-status-bar": "~57.0.1",
+    "mixpanel-react-native": "4.0.0",
     "phosphor-react-native": "^3.0.6",
     "react": "19.3.0",
     "react-native": "0.86.3",
