@@ -1,19 +1,28 @@
 import { createClient } from '@/lib/supabase/client';
 
-export type StudioSettings = { cancellationCutoffHours: number };
+// supportWhatsapp: digits-only international number, null = mobile app falls
+// back to the web support page.
+export type StudioSettings = { cancellationCutoffHours: number; supportWhatsapp: string | null };
 
 // studio_settings is a single row (id is always true). RLS grants every
 // authenticated user select, but only admins can update -- no RPC needed.
 export async function getStudioSettings(): Promise<StudioSettings> {
   const supabase = createClient();
-  const { data, error } = await supabase.from('studio_settings').select('cancellation_cutoff_hours').eq('id', true).single();
+  const { data, error } = await supabase
+    .from('studio_settings')
+    .select('cancellation_cutoff_hours, support_whatsapp')
+    .eq('id', true)
+    .single();
   if (error) throw error;
-  return { cancellationCutoffHours: data.cancellation_cutoff_hours };
+  return { cancellationCutoffHours: data.cancellation_cutoff_hours, supportWhatsapp: data.support_whatsapp };
 }
 
-export async function updateCancellationCutoff(hours: number) {
+export async function updateStudioSettings(s: StudioSettings) {
   const supabase = createClient();
-  const { error } = await supabase.from('studio_settings').update({ cancellation_cutoff_hours: hours }).eq('id', true);
+  const { error } = await supabase
+    .from('studio_settings')
+    .update({ cancellation_cutoff_hours: s.cancellationCutoffHours, support_whatsapp: s.supportWhatsapp })
+    .eq('id', true);
   return { error };
 }
 

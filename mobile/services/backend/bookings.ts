@@ -131,3 +131,10 @@ export async function getSchedulePublishedUntil(): Promise<string> {
   if (error) throw error;
   return data.schedule_published_until;
 }
+
+// Digits-only international number, or null when the studio hasn't set one.
+export async function getSupportWhatsapp(): Promise<string | null> {
+  const { data, error } = await backend.from('studio_settings').select('support_whatsapp').eq('id', true).single();
+  if (error) throw error;
+  return data.support_whatsapp;
+}
