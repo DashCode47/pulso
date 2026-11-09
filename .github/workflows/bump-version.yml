@@ -1,0 +1,35 @@
+# Every push to master bumps the app patch version (1.0.1 -> 1.0.2) and tags it.
+# Xcode Cloud's workflow starts on tag changes matching v* and archives that tag.
+# Commits pushed with GITHUB_TOKEN don't re-trigger Actions, so no loop.
+name: Bump version
+
+on:
+  push:
+    branches: [master]
+    paths: ['mobile/**']
+
+permissions:
+  contents: write
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Bump patch in app.json
+        id: bump
+        run: |
+          V=$(node -e '
+            const fs=require("fs"),f="mobile/app.json",j=JSON.parse(fs.readFileSync(f));
+            const [a,b,c]=j.expo.version.split(".").map(Number);
+            j.expo.version=`${a}.${b}.${c+1}`;
+            fs.writeFileSync(f,JSON.stringify(j,null,2)+"\n");
+            console.log(j.expo.version)')
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+      - name: Commit and tag
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898283+github-actions[bot]@users.noreply.github.com
+          git commit -am "chore(mobile): version ${{ steps.bump.outputs.version }} [skip ci]"
+          git tag "v${{ steps.bump.outputs.version }}"
+          git push origin HEAD "v${{ steps.bump.outputs.version }}"
