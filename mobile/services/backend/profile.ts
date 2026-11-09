@@ -82,6 +82,19 @@ export async function uploadMyAvatar(uri: string, contentType: string): Promise<
   return url;
 }
 
+// Two copies of the name: profiles.full_name (leaderboards, admin members list)
+// and auth user_metadata (AppUser.name). updateUser fires USER_UPDATED, so
+// onAuthStateChange refreshes the auth store on its own.
+export async function updateMyName(name: string): Promise<void> {
+  const userId = await currentUserId();
+  if (!userId) throw new Error('Usuario no autenticado');
+
+  const { error } = await backend.from('profiles').update({ full_name: name }).eq('id', userId);
+  if (error) throw error;
+  const { error: authError } = await backend.auth.updateUser({ data: { full_name: name } });
+  if (authError) throw authError;
+}
+
 // Avatar files first: storage rows can't be deleted from SQL, and once the
 // user is gone the "delete own avatar" policy no longer matches.
 export async function deleteMyAccount(): Promise<void> {

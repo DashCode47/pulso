@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { View, Pressable, ScrollView, ActivityIndicator, StyleSheet, Switch, Linking } from 'react-native';
+import { View, Pressable, ScrollView, ActivityIndicator, StyleSheet, Switch, Linking, TextInput } from 'react-native';
 import { Text } from '../../components/Text';
 import { Image } from 'expo-image';
-import { CameraIcon, CaretRightIcon, CheckCircleIcon, CreditCardIcon, FileTextIcon, LifebuoyIcon, MoonIcon, ShieldCheckIcon, SignOutIcon, SunIcon, UserIcon, WarningCircleIcon, XCircleIcon, type Icon } from '../../components/icons';
+import { CameraIcon, CaretRightIcon, CheckCircleIcon, CreditCardIcon, FileTextIcon, LifebuoyIcon, MoonIcon, PencilSimpleIcon, ShieldCheckIcon, SignOutIcon, SunIcon, UserIcon, WarningCircleIcon, XCircleIcon, type Icon } from '../../components/icons';
 import { LEGAL_LINKS } from '../../lib/legal';
-import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../features/auth/useAuth';
+import { useAuthStore } from '../../features/auth/store';
 import { CANCEL_ERROR_MESSAGES } from '../../features/bookings/errorMessages';
 import { useBookingActions } from '../../features/bookings/useBookings';
 import { useChangeAvatar, useMyAvatar } from '../../features/profile/useAvatar';
@@ -40,6 +41,10 @@ export default function Profile() {
   const actions = useBookingActions();
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const queryClient = useQueryClient();
+  // null = not editing.
+  const [nameDraft, setNameDraft] = useState<string | null>(null);
+  const [savingName, setSavingName] = useState(false);
   const { data: avatarUrl } = useMyAvatar();
   const changeAvatar = useChangeAvatar();
   const { data: membership, isLoading: loadingMembership } = useQuery({
@@ -85,6 +90,27 @@ export default function Profile() {
         },
       },
     ]);
+  }
+
+  async function saveName() {
+    const name = nameDraft?.trim() ?? '';
+    if (savingName) return;
+    if (!name || name === user?.name) return setNameDraft(null);
+    setSavingName(true);
+    try {
+      await backend.updateMyName(name);
+      setNameDraft(null);
+      // Every cached copy of the name: auth store (Home greeting, this header;
+      // USER_UPDATED would also do it, but only after a round trip) and the
+      // queries that embed profiles.full_name.
+      if (user) useAuthStore.getState().setUser({ ...user, name });
+      queryClient.invalidateQueries({ queryKey: ['leaderboard'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'members'] });
+    } catch {
+      showAlert('Error', 'No se pudo actualizar tu nombre.');
+    } finally {
+      setSavingName(false);
+    }
   }
 
   function confirmDeleteAccount() {
@@ -140,8 +166,30 @@ export default function Profile() {
               </View>
             )}
           </Pressable>
-          <View>
-            <Text style={styles.name}>{user?.name}</Text>
+          <View style={{ flex: 1 }}>
+            {nameDraft !== null ? (
+              <View style={styles.nameRow}>
+                <TextInput
+                  style={[styles.name, styles.nameInput]}
+                  value={nameDraft}
+                  onChangeText={setNameDraft}
+                  onBlur={saveName} // "done" blurs a single-line input, so this also covers submit
+                  editable={!savingName}
+                  autoFocus
+                  autoCapitalize="words"
+                  autoComplete="name"
+                  maxLength={60}
+                  returnKeyType="done"
+                  accessibilityLabel="Nombre"
+                />
+                {savingName && <ActivityIndicator size="small" color={colors.inkSoft} />}
+              </View>
+            ) : (
+              <Pressable style={styles.nameRow} accessibilityRole="button" accessibilityLabel="Editar nombre" onPress={() => setNameDraft(user?.name ?? '')}>
+                <Text style={styles.name}>{user?.name}</Text>
+                <PencilSimpleIcon size={16} color={colors.inkMuted} />
+              </Pressable>
+            )}
             <Text style={styles.email}>{user?.email}</Text>
             {isAdmin && (
               <View style={styles.adminBadge}>
@@ -354,6 +402,8 @@ const styles = themed(() => StyleSheet.create({
     justifyContent: 'center',
   },
   name: { fontSize: 20, fontWeight: '800', letterSpacing: -0.3, color: colors.ink },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  nameInput: { flex: 1, padding: 0, borderBottomWidth: 1, borderBottomColor: colors.accent },
   email: { fontSize: 14, color: colors.inkSoft },
   adminBadge: { backgroundColor: colors.accentSoft, borderRadius: radius.pill, paddingVertical: 2, paddingHorizontal: spacing.sm, alignSelf: 'flex-start', marginTop: spacing.xs },
   adminBadgeText: { color: colors.accent, fontWeight: '700', fontSize: 11, textTransform: 'uppercase' },

@@ -32,6 +32,7 @@ export { LightningIcon } from 'phosphor-react-native/src/icons/Lightning';
 export { LockIcon } from 'phosphor-react-native/src/icons/Lock';
 export { MedalIcon } from 'phosphor-react-native/src/icons/Medal';
 export { MoonIcon } from 'phosphor-react-native/src/icons/Moon';
+export { PencilSimpleIcon } from 'phosphor-react-native/src/icons/PencilSimple';
 export { PlusCircleIcon } from 'phosphor-react-native/src/icons/PlusCircle';
 export { RankingIcon } from 'phosphor-react-native/src/icons/Ranking';
 export { ShieldCheckIcon } from 'phosphor-react-native/src/icons/ShieldCheck';
