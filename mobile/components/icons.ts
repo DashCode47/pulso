@@ -46,3 +46,4 @@ export { UsersThreeIcon } from 'phosphor-react-native/src/icons/UsersThree';
 export { WarningCircleIcon } from 'phosphor-react-native/src/icons/WarningCircle';
 export { XCircleIcon } from 'phosphor-react-native/src/icons/XCircle';
 export { XIcon } from 'phosphor-react-native/src/icons/X';
+export { WhatsappLogoIcon } from 'phosphor-react-native/src/icons/WhatsappLogo';

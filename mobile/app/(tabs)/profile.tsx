@@ -3,7 +3,7 @@ import { View, Pressable, ScrollView, ActivityIndicator, StyleSheet, Switch, Lin
 import { Text } from '../../components/Text';
 import { Image } from 'expo-image';
 import { CameraIcon, CaretRightIcon, CheckCircleIcon, CreditCardIcon, FileTextIcon, LifebuoyIcon, MoonIcon, ShieldCheckIcon, SignOutIcon, SunIcon, UserIcon, WarningCircleIcon, XCircleIcon, type Icon } from '../../components/icons';
-import { LEGAL_LINKS, supportUrl } from '../../lib/legal';
+import { LEGAL_LINKS } from '../../lib/legal';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useAuth } from '../../features/auth/useAuth';
 import { CANCEL_ERROR_MESSAGES } from '../../features/bookings/errorMessages';
@@ -47,7 +47,6 @@ export default function Profile() {
     queryFn: backend.getMyMembership,
     enabled: !isAdmin,
   });
-  const { data: supportWhatsapp } = useQuery({ queryKey: ['support-whatsapp'], queryFn: backend.getSupportWhatsapp });
   const [tab, setTab] = useState<'upcoming' | 'past'>('upcoming');
   // Both keys start with 'my-history' so booking actions invalidate them together.
   // Polled like Home's classes query; dataUpdatedAt is read so every poll
@@ -298,7 +297,7 @@ export default function Profile() {
 
         <View style={styles.historyGroup}>
           {([
-            { label: 'Soporte', icon: LifebuoyIcon, url: supportUrl(supportWhatsapp) },
+            { label: 'Soporte', icon: LifebuoyIcon, url: LEGAL_LINKS.support },
             { label: 'Términos y condiciones', icon: FileTextIcon, url: LEGAL_LINKS.terms },
             { label: 'Política de privacidad', icon: ShieldCheckIcon, url: LEGAL_LINKS.privacy },
           ] as const).map((l, i) => (

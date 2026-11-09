@@ -1,8 +1,9 @@
 import { useCallback } from 'react';
-import { View, Pressable, ScrollView, StyleSheet } from 'react-native';
 import { Text } from '../../components/Text';
 import { Image } from 'expo-image';
-import { ArrowRightIcon, CalendarBlankIcon, FireIcon, LightningIcon, LockIcon, PlusCircleIcon, RankingIcon, UsersThreeIcon } from '../../components/icons';
+import { View, Pressable, ScrollView, StyleSheet, Linking } from 'react-native';
+import { ArrowRightIcon, CalendarBlankIcon, CaretRightIcon, FireIcon, LightningIcon, LockIcon, PlusCircleIcon, RankingIcon, UsersThreeIcon, WhatsappLogoIcon } from '../../components/icons';
+import { whatsappUrl } from '../../lib/legal';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '../../features/auth/store';
@@ -119,6 +120,7 @@ function MemberHome() {
   const { data: classes } = useUpcomingClasses();
   const { data: membership } = useMyMembership();
   const blockMessage = membershipBlockMessage(membership);
+  const { data: whatsapp } = useQuery({ queryKey: ['support-whatsapp'], queryFn: backend.getSupportWhatsapp });
   const next = classes?.find((c) => c.myReservationId);
   const nextClass = next && {
     title: next.title,
@@ -239,6 +241,22 @@ function MemberHome() {
           <ProgressBar progress={weeklyCompleted / weeklyGoal} />
           <Text style={styles.weeklyHint}>{weeklyGoalHint(weeklyCompleted, weeklyGoal)}</Text>
         </View>
+
+        {/* Hidden until an admin sets the number in settings. */}
+        {!!whatsapp && (
+          <Pressable
+            style={({ pressed }) => [styles.whatsappCard, pressed && styles.pressed]}
+            accessibilityRole="link"
+            onPress={() => Linking.openURL(whatsappUrl(whatsapp))}
+          >
+            <WhatsappLogoIcon size={24} color={colors.ink} weight="fill" />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.weeklyTitle}>¿Tienes dudas?</Text>
+              <Text style={styles.weeklyHint}>Escríbenos por WhatsApp</Text>
+            </View>
+            <CaretRightIcon size={16} color={colors.inkMuted} />
+          </Pressable>
+        )}
       </ScrollView>
     </Screen>
   );
@@ -344,4 +362,5 @@ const styles = themed(() => StyleSheet.create({
   weeklyTitle: { ...type.h2, color: colors.ink },
   weeklyCount: { ...type.h2, color: colors.ink },
   weeklyHint: { ...type.caption, color: colors.inkSoft },
+  whatsappCard: { ...card(), padding: spacing.xl, flexDirection: 'row', alignItems: 'center', gap: spacing.md },
 }));
