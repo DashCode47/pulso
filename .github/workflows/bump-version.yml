@@ -1,12 +1,11 @@
-# Every push to master bumps the app patch version (1.0.1 -> 1.0.2) and tags it.
+# Manual release: `gh workflow run bump-version.yml` (or Actions tab > Run workflow)
+# bumps the app patch version (1.0.2 -> 1.0.3) on master and tags it.
 # Xcode Cloud's workflow starts on tag changes matching v* and archives that tag.
 # Commits pushed with GITHUB_TOKEN don't re-trigger Actions, so no loop.
 name: Bump version
 
 on:
-  push:
-    branches: [master]
-    paths: ['mobile/**']
+  workflow_dispatch:
 
 permissions:
   contents: write
