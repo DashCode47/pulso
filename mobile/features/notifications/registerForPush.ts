@@ -1,11 +1,12 @@
-import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
+import { Notifications } from './notifications';
 import { registerPushToken } from '../../services/backend';
 
-// Best-effort: a denied permission, missing EAS project, or unsupported
-// simulator should never block using the app.
+// Best-effort: a denied permission, missing EAS project, unsupported
+// simulator, or Expo Go on Android should never block using the app.
 export async function registerForPushNotifications() {
+  if (!Notifications) return;
   try {
     if (Platform.OS === 'android') {
       await Notifications.setNotificationChannelAsync('default', {

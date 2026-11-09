@@ -5,7 +5,7 @@ import { Stack, ThemeProvider, DarkTheme, DefaultTheme, useSegments } from 'expo
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 import { Image } from 'expo-image';
-import * as Notifications from 'expo-notifications';
+import { Notifications } from '../features/notifications/notifications';
 import * as Sentry from '@sentry/react-native';
 import { queryClient } from '../lib/queryClient';
 import { useAuthStore } from '../features/auth/store';
@@ -22,7 +22,7 @@ Sentry.init({
 
 // Module-level, once per process: controls how a push is presented while
 // the app is in the foreground (otherwise it's silently swallowed).
-Notifications.setNotificationHandler({
+Notifications?.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowBanner: true,
     shouldShowList: true,
@@ -47,10 +47,10 @@ function useScreenTracking() {
 // Which pushes actually bring people back into the app.
 function usePushOpenTracking() {
   useEffect(() => {
-    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
+    const sub = Notifications?.addNotificationResponseReceivedListener((response) => {
       track('Push Opened', { title: response.notification.request.content.title ?? null });
     });
-    return () => sub.remove();
+    return () => sub?.remove();
   }, []);
 }
 
