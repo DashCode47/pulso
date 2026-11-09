@@ -73,7 +73,8 @@
           }
         }
       ],
-      ["@sentry/react-native", { "url": "https://sentry.io/", "organization": "code-for-all", "project": "pulso-tracking" }]
+      ["@sentry/react-native", { "url": "https://sentry.io/", "organization": "code-for-all", "project": "pulso-tracking" }],
+      ["expo-build-properties", { "android": { "enableMinifyInReleaseBuilds": true, "enableShrinkResourcesInReleaseBuilds": true } }]
     ],
     "extra": {
       "router": {},
