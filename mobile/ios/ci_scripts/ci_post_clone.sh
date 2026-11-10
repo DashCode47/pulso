@@ -5,6 +5,10 @@
 set -e
 brew install node cocoapods
 cd "$CI_PRIMARY_REPOSITORY_PATH/mobile"
+# Xcode Cloud env vars aren't reliably visible to the Metro bundling build phase,
+# but Expo always reads .env, so persist them here. Missing Supabase config = crash on launch, so fail the build.
+: "${EXPO_PUBLIC_SUPABASE_URL:?set in Xcode Cloud workflow env}" "${EXPO_PUBLIC_SUPABASE_KEY:?set in Xcode Cloud workflow env}"
+env | grep '^EXPO_PUBLIC_' > .env
 npm ci
 npx expo prebuild --platform ios --no-install
 cd ios && pod install
