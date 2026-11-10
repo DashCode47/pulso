@@ -42,6 +42,7 @@
       ],
       "@react-native-community/datetimepicker",
       "./plugins/withReleaseSigning",
+      "./plugins/withSceneLifecycle",
       "expo-image",
       [
         "expo-font",
