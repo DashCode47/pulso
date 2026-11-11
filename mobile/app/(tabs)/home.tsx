@@ -2,7 +2,7 @@ import { useCallback } from 'react';
 import { Text } from '../../components/Text';
 import { Image } from 'expo-image';
 import { View, Pressable, ScrollView, StyleSheet, Linking } from 'react-native';
-import { ArrowRightIcon, CalendarBlankIcon, CaretRightIcon, FireIcon, LightningIcon, LockIcon, PlusCircleIcon, RankingIcon, UsersThreeIcon, WhatsappLogoIcon } from '../../components/icons';
+import { ArrowRightIcon, CalendarBlankIcon,FireIcon, LightningIcon, LockIcon, PlusCircleIcon, RankingIcon, UsersThreeIcon, WhatsappLogoIcon } from '../../components/icons';
 import { whatsappUrl } from '../../lib/legal';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
@@ -19,6 +19,7 @@ import { PulseLine } from '../../components/PulseLine';
 import { Screen } from '../../components/Screen';
 import { AvatarRing } from '../../components/AvatarRing';
 import { InstructorAvatar } from '../../components/InstructorAvatar';
+import { AppImage } from '../../components/AppImage';
 import { colors, radius, spacing, type, themed, useThemeMode } from '../../theme';
 
 export default function Home() {
@@ -247,14 +248,26 @@ function MemberHome() {
           <Pressable
             style={({ pressed }) => [styles.whatsappCard, pressed && styles.pressed]}
             accessibilityRole="link"
+            accessibilityLabel="Soporte en línea. Contáctanos por WhatsApp"
             onPress={() => Linking.openURL(whatsappUrl(whatsapp))}
           >
-            <WhatsappLogoIcon size={24} color={colors.ink} weight="fill" />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.weeklyTitle}>¿Tienes dudas?</Text>
-              <Text style={styles.weeklyHint}>Escríbenos por WhatsApp</Text>
+            <AppImage
+              name="home-whatsapp.jpg"
+              // Photo: Eugene Barmin on Pexels (Pexels License, free for commercial use).
+              fallback={require('../../assets/support-headset.jpg')}
+              style={StyleSheet.absoluteFill}
+              contentFit="cover"
+              contentPosition="right center"
+            />
+            <View style={[StyleSheet.absoluteFill, styles.whatsappScrim]} />
+            <View>
+              <Text style={styles.whatsappTitle}>Soporte en línea</Text>
+              <Text style={styles.whatsappEyebrow}>Contáctanos</Text>
             </View>
-            <CaretRightIcon size={16} color={colors.inkMuted} />
+            <View style={styles.whatsappPill}>
+              <WhatsappLogoIcon size={18} color={WHATSAPP_GREEN} weight="fill" />
+              <Text style={styles.whatsappPillText}>WhatsApp</Text>
+            </View>
           </Pressable>
         )}
       </ScrollView>
@@ -266,6 +279,8 @@ function MemberHome() {
 function todayLabel() {
   return new Date().toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long' });
 }
+
+const WHATSAPP_GREEN = '#25D366';
 
 const card = () => ({
   backgroundColor: colors.surface,
@@ -362,5 +377,15 @@ const styles = themed(() => StyleSheet.create({
   weeklyTitle: { ...type.h2, color: colors.ink },
   weeklyCount: { ...type.h2, color: colors.ink },
   weeklyHint: { ...type.caption, color: colors.inkSoft },
-  whatsappCard: { ...card(), padding: spacing.xl, flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  whatsappCard: { ...card(), minHeight: 136, padding: spacing.xl, justifyContent: 'space-between', overflow: 'hidden' },
+  // Text sits on a photo, so it's white in both themes; the scrim keeps it readable over any upload.
+  whatsappScrim: { experimental_backgroundImage: 'linear-gradient(110deg, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.35) 60%, rgba(0,0,0,0.55) 100%)' },
+  whatsappTitle: { ...type.title, color: '#FFFFFF' },
+  whatsappEyebrow: { ...type.eyebrow, fontSize: 13, letterSpacing: 4, color: 'rgba(255,255,255,0.85)', marginTop: spacing.xs },
+  whatsappPill: {
+    alignSelf: 'flex-end', flexDirection: 'row', alignItems: 'center', gap: spacing.xs,
+    paddingVertical: spacing.xs, paddingHorizontal: spacing.md, borderRadius: radius.pill,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+  },
+  whatsappPillText: { ...type.caption, fontWeight: '700', color: '#FFFFFF' },
 }));

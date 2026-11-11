@@ -3,7 +3,7 @@
 -- come from here instead of being bundled, so they can be swapped without
 -- shipping a new build. The app reads fixed paths -- replace a file by
 -- uploading over it with the same name:
---   onboarding-1.jpg, onboarding-2.jpg, onboarding-3.jpg, bookings-hero.jpg
+--   onboarding-1.jpg, onboarding-2.jpg, onboarding-3.jpg, bookings-hero.jpg, home-whatsapp.jpg
 -- Public bucket: onboarding runs before sign-in, so reads can't require auth.
 -- Only admins may write.
 
