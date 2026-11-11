@@ -9,6 +9,12 @@ const messages: Record<string, string> = {
   class_not_found: 'La clase ya no existe. Recarga la página.',
   class_already_started: 'La clase ya empezó y no se puede modificar.',
   title_and_body_required: 'El título y el mensaje son obligatorios.',
+  no_active_membership: 'El miembro no tiene una membresía activa.',
+  membership_not_valid_for_class: 'La membresía del miembro vence antes de esa clase.',
+  insufficient_credits: 'El miembro no tiene créditos.',
+  class_not_available: 'La clase está llena o ya no está disponible.',
+  bike_or_class_unavailable: 'Esa bici ya fue tomada o el miembro ya está inscrito en esta clase.',
+  reservation_not_markable: 'Esa reserva ya no se puede marcar.',
   not_authorized: 'Tu cuenta no tiene permisos para esta acción.',
   not_authenticated: 'Tu sesión expiró. Vuelve a ingresar.',
   // Postgres SQLSTATE codes

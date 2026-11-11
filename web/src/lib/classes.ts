@@ -10,6 +10,8 @@ export type AdminClass = {
   durationMinutes: number;
   capacity: number;
   bookedCount: number;
+  attendedCount: number; // filled in after the class ends (close_finished_classes)
+  noShowCount: number;
   status: 'scheduled' | 'completed' | 'cancelled';
 };
 
@@ -23,6 +25,20 @@ export async function listUpcomingClasses(): Promise<AdminClass[]> {
     .select(CLASS_SELECT)
     .gte('starts_at', new Date().toISOString())
     .order('starts_at');
+  if (error) throw error;
+  return (data ?? []).map(toAdminClass);
+}
+
+// Classes that already started, newest first (attendance review).
+export async function listPastClasses(days = 14): Promise<AdminClass[]> {
+  const supabase = createClient();
+  const now = new Date();
+  const { data, error } = await supabase
+    .from('classes')
+    .select(CLASS_SELECT)
+    .lt('starts_at', now.toISOString())
+    .gte('starts_at', new Date(now.getTime() - days * 86_400_000).toISOString())
+    .order('starts_at', { ascending: false });
   if (error) throw error;
   return (data ?? []).map(toAdminClass);
 }
@@ -146,6 +162,8 @@ function toAdminClass(c: {
     durationMinutes: c.duration_minutes,
     capacity: c.capacity,
     bookedCount: c.reservations.filter((r) => r.status === 'booked').length,
+    attendedCount: c.reservations.filter((r) => r.status === 'attended').length,
+    noShowCount: c.reservations.filter((r) => r.status === 'no_show').length,
     status: c.status,
   };
 }
@@ -160,6 +178,7 @@ export async function cancelClass(classId: string) {
 
 export type ClassRoster = {
   reservationId: string;
+  userId: string;
   fullName: string;
   bikeLabel: string;
   status: 'booked' | 'cancelled' | 'attended' | 'no_show';
@@ -182,18 +201,64 @@ export async function listClassRoster(classId: string): Promise<ClassRoster[]> {
   if (error) throw error;
   if (!reservations?.length) return [];
 
-  const { data: profiles, error: profilesError } = await supabase
-    .from('profiles')
-    .select('id, full_name')
-    .in('id', reservations.map((r) => r.user_id));
-  if (profilesError) throw profilesError;
-  const nameById = new Map((profiles ?? []).map((p) => [p.id, p.full_name]));
+  const nameById = await namesById(reservations.map((r) => r.user_id));
 
   return reservations.map((r) => ({
     reservationId: r.id,
+    userId: r.user_id,
     fullName: nameById.get(r.user_id) ?? '',
     bikeLabel: firstEmbed(r.bikes)?.label ?? '',
     status: r.status,
     bookedAt: r.booked_at,
   }));
+}
+
+async function namesById(userIds: string[]) {
+  if (userIds.length === 0) return new Map<string, string>();
+  const { data, error } = await createClient().from('profiles').select('id, full_name').in('id', userIds);
+  if (error) throw error;
+  return new Map((data ?? []).map((p) => [p.id as string, p.full_name as string]));
+}
+
+export type WaitlistEntry = { id: string; fullName: string; status: 'waiting' | 'offered'; createdAt: string };
+
+// Queue order = created_at, same as join_waitlist()/class_availability().
+export async function listClassWaitlist(classId: string): Promise<WaitlistEntry[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from('waitlist_entries')
+    .select('id, user_id, status, created_at')
+    .eq('class_id', classId)
+    .in('status', ['waiting', 'offered'])
+    .order('created_at');
+  if (error) throw error;
+  const names = await namesById((data ?? []).map((w) => w.user_id));
+  return (data ?? []).map((w) => ({ id: w.id, fullName: names.get(w.user_id) ?? '', status: w.status, createdAt: w.created_at }));
+}
+
+// Booked or auto-attended -> no_show; takes back the class XP (see mark_no_show()).
+export async function markNoShow(reservationId: string) {
+  const { error } = await createClient().rpc('mark_no_show', { p_reservation_id: reservationId });
+  return { error };
+}
+
+// Same rules as a member booking from the app (credit, membership, capacity).
+export async function adminBookClass(userId: string, classId: string, bikeId: string) {
+  const { error } = await createClient().rpc('admin_book_class', { p_user_id: userId, p_class_id: classId, p_bike_id: bikeId });
+  return { error };
+}
+
+// Active bikes not booked in this class.
+export async function listFreeBikes(classId: string): Promise<{ id: string; label: string }[]> {
+  const supabase = createClient();
+  const [{ data: bikes, error: bikesError }, { data: taken, error: takenError }] = await Promise.all([
+    supabase.from('bikes').select('id, label').eq('active', true),
+    supabase.from('reservations').select('bike_id').eq('class_id', classId).eq('status', 'booked'),
+  ]);
+  if (bikesError) throw bikesError;
+  if (takenError) throw takenError;
+  const takenIds = new Set((taken ?? []).map((t) => t.bike_id));
+  return (bikes ?? [])
+    .filter((b) => !takenIds.has(b.id))
+    .sort((a, b) => a.label.localeCompare(b.label, 'es', { numeric: true }));
 }

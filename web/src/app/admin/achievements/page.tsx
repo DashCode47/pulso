@@ -18,7 +18,8 @@ import {
 } from '@/lib/achievements';
 import { Instructor, listInstructors } from '@/lib/instructors';
 import { describeError } from '@/lib/errors';
-import { Badge, Button, Card, EmptyState, ErrorBanner, Input, Label, PageHeader, Select, TableCard } from '@/components/ui';
+import { Badge, Button, EmptyState, ErrorBanner, Input, Label, PageHeader, Select, TableCard, Loading } from '@/components/ui';
+import { PlusIcon } from '@/components/icons';
 import { toast, toastError } from '@/components/toast';
 import { useConfirm } from '@/components/confirm-dialog';
 
@@ -102,7 +103,7 @@ export default function AchievementsPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm());
   const [saving, setSaving] = useState(false);
-  const formRef = useRef<HTMLDivElement>(null);
+  const dialogRef = useRef<HTMLDialogElement>(null);
   const { confirm, dialog: confirmDialog } = useConfirm();
   const today = bogotaToday();
 
@@ -141,19 +142,20 @@ export default function AchievementsPage() {
     (form.rule !== 'classes_with_instructor' || form.instructorId) &&
     datesValid;
 
-  function scrollToForm() {
-    formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }
-
   function startEdit(a: Achievement) {
     setEditingId(a.id);
     setForm(formFromAchievement(a));
-    scrollToForm();
+    dialogRef.current?.showModal();
   }
 
   function startCreate() {
     setEditingId(null);
     setForm(emptyForm());
+  }
+
+  function openCreate() {
+    startCreate();
+    dialogRef.current?.showModal();
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -193,6 +195,7 @@ export default function AchievementsPage() {
       return;
     }
     toast(editingId ? 'Logro actualizado.' : `Logro "${input.name}" creado.`);
+    dialogRef.current?.close();
     startCreate();
     refresh();
   }
@@ -223,21 +226,23 @@ export default function AchievementsPage() {
       <PageHeader
         title="Logros"
         description="Cada logro usa una regla y sus números. Un logro que algún miembro ya desbloqueó no se puede editar; si lo eliminas, los miembros conservan el XP."
+        action={
+          <Button onClick={openCreate}>
+            <PlusIcon className="h-4 w-4" />
+            Nuevo logro
+          </Button>
+        }
       />
 
       {error && <ErrorBanner>{error}</ErrorBanner>}
 
-      <div ref={formRef}>
-        <Card className="p-5">
+      <dialog ref={dialogRef} className="m-auto max-h-[92vh] w-full overflow-y-auto rounded-2xl border border-line bg-surface p-0 text-ink max-w-3xl">
+        <div className="p-5">
           <div className="mb-4 flex items-center justify-between">
-            <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
-              {editingId ? 'Editar logro' : 'Nuevo logro'}
-            </p>
-            {editingId && (
-              <Button type="button" variant="link" size="sm" onClick={startCreate}>
-                Cancelar edición
-              </Button>
-            )}
+            <h3 className="text-sm font-semibold text-ink">{editingId ? 'Editar logro' : 'Nuevo logro'}</h3>
+            <button type="button" onClick={() => dialogRef.current?.close()} className="text-sm text-ink-muted hover:text-ink">
+              Cerrar
+            </button>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
@@ -379,11 +384,11 @@ export default function AchievementsPage() {
               {saving ? 'Guardando...' : editingId ? 'Guardar cambios' : 'Crear logro'}
             </Button>
           </form>
-        </Card>
-      </div>
+        </div>
+      </dialog>
 
       {loading ? (
-        <p className="text-sm text-ink-soft">Cargando...</p>
+        <Loading />
       ) : items.length === 0 ? (
         <EmptyState>Sin logros todavía.</EmptyState>
       ) : (

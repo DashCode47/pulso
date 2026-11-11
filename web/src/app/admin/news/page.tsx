@@ -5,7 +5,8 @@ import { NewsCtaHref, NewsInput, NewsItem, createNews, deleteNews, listAllNews, 
 import { uploadNewsImage } from '@/lib/storage';
 import { bogotaDate, bogotaInstant, bogotaTime } from '@/lib/classes';
 import { describeError } from '@/lib/errors';
-import { Badge, Button, Card, EmptyState, ErrorBanner, Input, Label, PageHeader, Select, TableCard, Textarea, Toggle } from '@/components/ui';
+import { Badge, Button, EmptyState, ErrorBanner, Input, Label, PageHeader, Select, TableCard, Textarea, Toggle, Loading } from '@/components/ui';
+import { PlusIcon } from '@/components/icons';
 import { toast, toastError } from '@/components/toast';
 import { CardPreview, DetailPreview } from '@/components/news-preview';
 import { useConfirm } from '@/components/confirm-dialog';
@@ -78,7 +79,7 @@ export default function NewsPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm());
   const [saving, setSaving] = useState(false);
-  const formRef = useRef<HTMLFormElement>(null);
+  const dialogRef = useRef<HTMLDialogElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { confirm, dialog: confirmDialog } = useConfirm();
 
@@ -122,14 +123,18 @@ export default function NewsPage() {
     setEditingId(n.id);
     setForm(formFromItem(n));
     if (fileInputRef.current) fileInputRef.current.value = '';
-    formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    dialogRef.current?.showModal();
   }
 
   function startCreate() {
     setEditingId(null);
     setForm(emptyForm());
     if (fileInputRef.current) fileInputRef.current.value = '';
-    formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function openCreate() {
+    startCreate();
+    dialogRef.current?.showModal();
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -166,6 +171,7 @@ export default function NewsPage() {
       return;
     }
     toast(editingId ? 'Noticia actualizada.' : 'Noticia publicada.');
+    dialogRef.current?.close();
     startCreate();
     refresh();
   }
@@ -202,24 +208,30 @@ export default function NewsPage() {
 
   return (
     <div className="space-y-8">
-      <PageHeader title="Noticias" description="Banners del carrusel de inicio de la app. La misma imagen se recorta distinto en la tarjeta y en el detalle -- revisa ambas previsualizaciones." />
+      <PageHeader
+        title="Noticias"
+        description="Banners del carrusel de inicio de la app. La misma imagen se recorta distinto en la tarjeta y en el detalle -- revisa ambas previsualizaciones."
+        action={
+          <Button onClick={openCreate}>
+            <PlusIcon className="h-4 w-4" />
+            Nueva noticia
+          </Button>
+        }
+      />
 
       {error && <ErrorBanner>{error}</ErrorBanner>}
 
-      <Card className="p-5">
+      <dialog ref={dialogRef} className="m-auto max-h-[92vh] w-full overflow-y-auto rounded-2xl border border-line bg-surface p-0 text-ink max-w-5xl">
+        <div className="p-5">
         <div className="mb-4 flex items-center justify-between">
-          <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
-            {editingId ? 'Editar noticia' : 'Nueva noticia'}
-          </p>
-          {editingId && (
-            <Button type="button" variant="link" size="sm" onClick={startCreate}>
-              Cancelar edición
-            </Button>
-          )}
+          <h3 className="text-sm font-semibold text-ink">{editingId ? 'Editar noticia' : 'Nueva noticia'}</h3>
+          <button type="button" onClick={() => dialogRef.current?.close()} className="text-sm text-ink-muted hover:text-ink">
+            Cerrar
+          </button>
         </div>
 
         <div className="grid gap-8 lg:grid-cols-[1fr_428px]">
-          <form ref={formRef} onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <Label htmlFor="tag">Tag</Label>
@@ -327,10 +339,11 @@ export default function NewsPage() {
             </p>
           </div>
         </div>
-      </Card>
+        </div>
+      </dialog>
 
       {loading ? (
-        <p className="text-sm text-ink-soft">Cargando...</p>
+        <Loading />
       ) : items.length === 0 ? (
         <EmptyState>Sin noticias todavía.</EmptyState>
       ) : (

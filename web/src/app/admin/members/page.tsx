@@ -10,12 +10,17 @@ import {
   createMembership,
   getLatestMembership,
   grantCreditsBulk,
+  CreditTransaction,
+  MemberActivity,
+  getMemberActivity,
+  listCreditHistory,
   searchMembers,
   updateMembership,
 } from '@/lib/members';
+import { downloadCsv } from '@/lib/csv';
 import { STUDIO_TZ, addDays } from '@/lib/classes';
 import { describeError } from '@/lib/errors';
-import { Badge, Button, EmptyState, ErrorBanner, Input, Label, PageHeader, TableCard } from '@/components/ui';
+import { Badge, Button, EmptyState, ErrorBanner, Input, Label, Loading, PageHeader, TableCard } from '@/components/ui';
 import { useConfirm } from '@/components/confirm-dialog';
 import { toast, toastError } from '@/components/toast';
 
@@ -47,6 +52,25 @@ function minCycleStart() {
   return d.toISOString().slice(0, 10);
 }
 
+const creditTypeLabel: Record<CreditTransaction['type'], string> = {
+  grant: 'Renovación',
+  booking: 'Reserva',
+  cancel_refund: 'Reembolso',
+  no_show_penalty: 'Penalización',
+  admin_adjustment: 'Ajuste manual',
+};
+
+const bookingStatus: Record<string, { label: string; tone: 'mint' | 'coral' | 'neutral' | 'accent' }> = {
+  booked: { label: 'Reservado', tone: 'accent' },
+  attended: { label: 'Asistió', tone: 'mint' },
+  no_show: { label: 'No asistió', tone: 'coral' },
+};
+
+const formatDateTime = (iso: string) =>
+  new Date(iso).toLocaleString('es', { timeZone: STUDIO_TZ, weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+
+type DialogTab = 'membership' | 'activity' | 'credits';
+
 const EXPIRING_DAYS = 7;
 const isExpiringSoon = (m: Member) => m.membershipStatus === 'active' && !!m.cycleEnd && m.cycleEnd <= addDays(today(), EXPIRING_DAYS);
 
@@ -76,6 +100,9 @@ export default function MembersPage() {
   const [creditNote, setCreditNote] = useState('');
   const [adjustingCredits, setAdjustingCredits] = useState(false);
   const modalRef = useRef<HTMLDialogElement>(null);
+  const [dialogTab, setDialogTab] = useState<DialogTab>('membership');
+  const [activity, setActivity] = useState<MemberActivity | null>(null);
+  const [credits, setCredits] = useState<CreditTransaction[] | null>(null);
 
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
   const [renewing, setRenewing] = useState(false);
@@ -106,6 +133,9 @@ export default function MembersPage() {
     setSelected(m);
     setCreditAmount('');
     setCreditNote('');
+    setDialogTab('membership');
+    setActivity(null);
+    setCredits(null);
     setDetailLoading(true);
     modalRef.current?.showModal();
     try {
@@ -124,6 +154,37 @@ export default function MembersPage() {
     } finally {
       setDetailLoading(false);
     }
+  }
+
+  // Activity and credit history load the first time their tab is opened.
+  function openTab(tab: DialogTab) {
+    setDialogTab(tab);
+    if (!selected) return;
+    if (tab === 'activity' && !activity) {
+      getMemberActivity(selected.userId)
+        .then(setActivity)
+        .catch((e) => toastError(e, 'No se pudo cargar la actividad.'));
+    }
+    if (tab === 'credits' && !credits) {
+      listCreditHistory(selected.userId)
+        .then(setCredits)
+        .catch((e) => toastError(e, 'No se pudo cargar el historial de créditos.'));
+    }
+  }
+
+  function exportCsv() {
+    downloadCsv(
+      `miembros-${filter}-${today()}.csv`,
+      ['Nombre', 'Email', 'Créditos', 'Membresía', 'Desde', 'Vence'],
+      visible.map((m) => [
+        m.fullName,
+        m.email,
+        m.creditsBalance,
+        m.membershipStatus ? membershipStatusLabel[m.membershipStatus] : 'Sin membresía',
+        m.cycleStart ?? '',
+        m.cycleEnd ?? '',
+      ]),
+    );
   }
 
   // A cancelled membership is historical -- assigning again starts a fresh
@@ -211,6 +272,7 @@ export default function MembersPage() {
     }
     setCreditAmount('');
     setCreditNote('');
+    setCredits(null); // stale now; reloads next time the tab opens
     setSelected({ ...selected, creditsBalance: selected.creditsBalance + amount });
     toast(`${amount > 0 ? '+' : ''}${amount} créditos aplicados.`);
     refresh();
@@ -264,7 +326,7 @@ export default function MembersPage() {
             setQuery(e.target.value);
             setCheckedIds(new Set()); // a selection only makes sense for the rows on screen
           }}
-          placeholder="Buscar por nombre..."
+          placeholder="Buscar por nombre o email..."
           aria-label="Buscar miembros"
           className="max-w-sm"
         />
@@ -289,6 +351,9 @@ export default function MembersPage() {
             );
           })}
         </div>
+        <Button variant="ghost" size="sm" className="ml-auto" onClick={exportCsv} disabled={visible.length === 0}>
+          Exportar CSV ({visible.length})
+        </Button>
       </div>
 
       {loadError && <ErrorBanner>{loadError}</ErrorBanner>}
@@ -308,7 +373,7 @@ export default function MembersPage() {
       )}
 
       {loading ? (
-        <p className="text-sm text-ink-soft">Cargando...</p>
+        <Loading />
       ) : visible.length === 0 ? (
         <EmptyState>{query ? `Ningún miembro coincide con "${query}".` : 'No hay miembros en esta categoría.'}</EmptyState>
       ) : (
@@ -348,7 +413,10 @@ export default function MembersPage() {
                         onChange={() => toggleChecked(m.userId)}
                       />
                     </td>
-                    <td className="px-4 py-3 font-medium">{m.fullName}</td>
+                    <td className="px-4 py-3">
+                      <p className="font-medium">{m.fullName}</p>
+                      <p className="text-xs text-ink-muted">{m.email}</p>
+                    </td>
                     <td className="px-4 py-3 tabular-nums text-ink-soft">{m.creditsBalance}</td>
                     <td className="px-4 py-3">
                       {m.membershipStatus ? (
@@ -379,15 +447,49 @@ export default function MembersPage() {
           <div className="flex items-start justify-between">
             <div>
               <h3 className="text-sm font-semibold text-ink">{selected?.fullName}</h3>
-              <p className="text-xs text-ink-soft">Saldo actual: {selected?.creditsBalance} créditos</p>
+              <p className="text-xs text-ink-soft">
+                {selected?.email && (
+                  <a href={`mailto:${selected.email}`} className="hover:text-ink hover:underline">
+                    {selected.email}
+                  </a>
+                )}
+                {' · '}
+                {selected?.creditsBalance} créditos
+              </p>
             </div>
             <button onClick={() => modalRef.current?.close()} className="text-sm text-ink-muted hover:text-ink">
               Cerrar
             </button>
           </div>
 
-          {detailLoading ? (
-            <p className="text-sm text-ink-soft">Cargando...</p>
+          <div className="flex gap-1 border-b border-line" role="tablist">
+            {(
+              [
+                ['membership', 'Membresía'],
+                ['activity', 'Actividad'],
+                ['credits', 'Créditos'],
+              ] as const
+            ).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                role="tab"
+                aria-selected={dialogTab === value}
+                onClick={() => openTab(value)}
+                className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium transition-colors ${
+                  dialogTab === value ? 'border-mint text-ink' : 'border-transparent text-ink-soft hover:text-ink'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {dialogTab === 'activity' && <ActivityPanel activity={activity} />}
+          {dialogTab === 'credits' && <CreditsPanel credits={credits} />}
+
+          {dialogTab !== 'membership' ? null : detailLoading ? (
+            <Loading className="py-6" />
           ) : (
             <>
               <form onSubmit={handleSaveMembership} className="space-y-3">
@@ -493,5 +595,75 @@ export default function MembersPage() {
 
       {confirmDialog}
     </div>
+  );
+}
+
+function ActivityPanel({ activity }: { activity: MemberActivity | null }) {
+  if (!activity) return <Loading className="py-6" />;
+  const stats = [
+    { label: 'Clases', value: activity.classesCompleted, warn: false },
+    { label: 'Racha', value: `${activity.currentStreakWeeks} sem`, warn: false },
+    { label: 'Nivel', value: activity.level, warn: false },
+    { label: 'No asistió', value: activity.noShows, warn: activity.noShows > 0 },
+  ];
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-4 gap-2">
+        {stats.map((s) => (
+          <div key={s.label} className="rounded-lg bg-surface-alt p-2.5 text-center">
+            <p className={`text-lg font-semibold tabular-nums ${s.warn ? 'text-coral' : 'text-ink'}`}>{s.value}</p>
+            <p className="text-[11px] text-ink-muted">{s.label}</p>
+          </div>
+        ))}
+      </div>
+      <BookingList title="Próximas reservas" items={activity.upcoming} empty="Sin reservas próximas." />
+      <BookingList title="Últimas clases" items={activity.recent} empty="Todavía no ha tomado clases." />
+    </div>
+  );
+}
+
+function BookingList({ title, items, empty }: { title: string; items: MemberActivity['upcoming']; empty: string }) {
+  return (
+    <div>
+      <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-muted">{title}</p>
+      {items.length === 0 ? (
+        <p className="text-sm text-ink-muted">{empty}</p>
+      ) : (
+        <ul className="divide-y divide-line text-sm">
+          {items.map((b) => (
+            <li key={b.reservationId} className="flex items-center justify-between gap-3 py-1.5">
+              <span className="min-w-0 truncate">
+                <span className="text-ink">{b.classTitle}</span>
+                <span className="text-ink-muted"> · {formatDateTime(b.startsAt)}</span>
+              </span>
+              {bookingStatus[b.status] && <Badge tone={bookingStatus[b.status].tone}>{bookingStatus[b.status].label}</Badge>}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function CreditsPanel({ credits }: { credits: CreditTransaction[] | null }) {
+  if (!credits) return <Loading className="py-6" />;
+  if (credits.length === 0) return <p className="text-sm text-ink-muted">Sin movimientos de créditos.</p>;
+  return (
+    <ul className="max-h-80 divide-y divide-line overflow-y-auto text-sm">
+      {credits.map((t) => (
+        <li key={t.id} className="flex items-center justify-between gap-3 py-2">
+          <div className="min-w-0">
+            <p className="text-ink">{creditTypeLabel[t.type] ?? t.type}</p>
+            <p className="truncate text-xs text-ink-muted">
+              {formatDateTime(t.createdAt)}
+              {t.note && ` · ${t.note}`}
+            </p>
+          </div>
+          <span className={`shrink-0 font-semibold tabular-nums ${t.amount > 0 ? 'text-mint' : t.amount < 0 ? 'text-coral' : 'text-ink-soft'}`}>
+            {t.amount > 0 ? `+${t.amount}` : t.amount}
+          </span>
+        </li>
+      ))}
+    </ul>
   );
 }

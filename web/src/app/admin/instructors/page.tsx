@@ -15,7 +15,7 @@ import { describeError } from '@/lib/errors';
 import { useConfirm } from '@/components/confirm-dialog';
 import { toast, toastError } from '@/components/toast';
 import { PlusIcon } from '@/components/icons';
-import { Badge, Button, EmptyState, ErrorBanner, Input, Label, PageHeader, Toggle } from '@/components/ui';
+import { Badge, Button, EmptyState, ErrorBanner, Input, Label, PageHeader, Toggle, Loading } from '@/components/ui';
 
 type Draft = { name: string; active: boolean; photoFile: File | null; removePhoto: boolean };
 
@@ -170,7 +170,7 @@ export default function InstructorsPage() {
       )}
 
       {loading ? (
-        <p className="text-sm text-ink-soft">Cargando...</p>
+        <Loading />
       ) : visible.length === 0 ? (
         <EmptyState>Todavía no hay instructores. Agrega el primero con &ldquo;Nuevo instructor&rdquo;.</EmptyState>
       ) : (

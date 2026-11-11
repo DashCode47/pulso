@@ -116,3 +116,22 @@ export function Toggle({ checked, onChange, label, disabled }: { checked: boolea
 export function TableCard({ children }: { children: ReactNode }) {
   return <div className="overflow-x-auto rounded-2xl border border-line bg-surface">{children}</div>;
 }
+
+// Loading indicator: the app's ECG pulse (mobile/components/PulseLine.tsx) on
+// a loop -- a bright head sweeping over a faint trace. CSS only.
+const PULSE_POINTS = [
+  [0, 20], [30, 20], [34, 16], [38, 20], [44, 20], [47, 24], [52, 2],
+  [57, 30], [61, 20], [68, 20], [73, 14], [78, 20], [100, 20],
+];
+const PULSE_D = `M${PULSE_POINTS.map(([x, y]) => `${x} ${y}`).join(" L")}`;
+
+export function Loading({ label = "Cargando", className = "" }: { label?: string; className?: string }) {
+  return (
+    <div role="status" aria-label={label} className={`flex justify-center py-8 ${className}`}>
+      <svg viewBox="-2 0 104 32" className="h-6 w-16 overflow-visible" fill="none" aria-hidden>
+        <path d={PULSE_D} stroke="var(--color-ink)" strokeOpacity="0.15" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+        <path d={PULSE_D} pathLength={100} className="pulse-loop" stroke="var(--color-gold)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    </div>
+  );
+}

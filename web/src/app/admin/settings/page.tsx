@@ -3,8 +3,9 @@
 import { useEffect, useState } from 'react';
 import { getStudioSettings, updateStudioSettings } from '@/lib/settings';
 import { describeError } from '@/lib/errors';
-import { Button, Card, ErrorBanner, Input, Label, PageHeader } from '@/components/ui';
+import { Button, Card, ErrorBanner, Input, Label, PageHeader, Loading } from '@/components/ui';
 import { toast, toastError } from '@/components/toast';
+import { BikesCard } from './bikes-card';
 
 export default function SettingsPage() {
   const [cutoffHours, setCutoffHours] = useState('');
@@ -60,7 +61,7 @@ export default function SettingsPage() {
 
       <Card className="max-w-md p-5">
         {loading ? (
-          <p className="text-sm text-ink-soft">Cargando...</p>
+          <Loading />
         ) : (
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
@@ -97,6 +98,8 @@ export default function SettingsPage() {
           </form>
         )}
       </Card>
+
+      <BikesCard />
     </div>
   );
 }

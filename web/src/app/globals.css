@@ -64,3 +64,25 @@ dialog::backdrop {
     animation: none;
   }
 }
+
+/* Loader: a 35%-long segment of the pulse travels along the trace (PulseLine "loop"). */
+@keyframes pulse-loop {
+  from {
+    stroke-dashoffset: 135;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.pulse-loop {
+  stroke-dasharray: 35 100;
+  animation: pulse-loop 1400ms linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pulse-loop {
+    animation: none;
+    stroke-dasharray: none;
+  }
+}

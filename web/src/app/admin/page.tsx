@@ -6,7 +6,8 @@ import { AdminClass, addDays, bogotaDate, bogotaTime, listUpcomingClasses, monda
 import { Member, searchMembers } from '@/lib/members';
 import { getSchedulePublishedUntil } from '@/lib/settings';
 import { describeError } from '@/lib/errors';
-import { Badge, Card, ErrorBanner, PageHeader } from '@/components/ui';
+import { Badge, Card, ErrorBanner, Loading, PageHeader } from '@/components/ui';
+import { OccupancyCard } from './occupancy';
 import { ChevronRightIcon } from '@/components/icons';
 
 function formatShort(date: string) {
@@ -70,7 +71,7 @@ export default function AdminHome() {
         <Card className="p-5">
           <SectionTitle title="Clases de hoy" href="/admin/classes" />
           {loading ? (
-            <p className="text-sm text-ink-soft">Cargando...</p>
+            <Loading className="py-4" />
           ) : todayClasses.length === 0 ? (
             <p className="text-sm text-ink-muted">No quedan clases hoy.</p>
           ) : (
@@ -94,7 +95,7 @@ export default function AdminHome() {
         <Card className="p-5">
           <SectionTitle title="Membresías por vencer" href="/admin/members" />
           {loading ? (
-            <p className="text-sm text-ink-soft">Cargando...</p>
+            <Loading className="py-4" />
           ) : expiring.length === 0 ? (
             <p className="text-sm text-ink-muted">Ninguna membresía vence esta semana.</p>
           ) : (
@@ -111,6 +112,8 @@ export default function AdminHome() {
           )}
         </Card>
       </div>
+
+      <OccupancyCard />
     </div>
   );
 }
