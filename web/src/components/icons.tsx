@@ -110,3 +110,12 @@ export function TrophyIcon({ className = "h-4 w-4" }: IconProps) {
     </svg>
   );
 }
+
+export function UserIcon({ className = "h-4 w-4" }: IconProps) {
+  return (
+    <svg viewBox="0 0 20 20" className={className} {...base}>
+      <circle cx="10" cy="6.5" r="3" />
+      <path d="M4 17c.7-3.2 3-5 6-5s5.3 1.8 6 5" />
+    </svg>
+  );
+}

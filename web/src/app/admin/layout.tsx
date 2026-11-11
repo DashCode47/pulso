@@ -14,6 +14,7 @@ import {
   RepeatIcon,
   SettingsIcon,
   TrophyIcon,
+  UserIcon,
   UsersIcon,
 } from '@/components/icons';
 
@@ -21,6 +22,7 @@ const navItems = [
   { href: '/admin', label: 'Inicio', icon: HomeIcon, exact: true },
   { href: '/admin/classes', label: 'Clases', icon: CalendarIcon },
   { href: '/admin/schedule', label: 'Horario semanal', icon: RepeatIcon },
+  { href: '/admin/instructors', label: 'Instructores', icon: UserIcon },
   { href: '/admin/members', label: 'Miembros', icon: UsersIcon },
   { href: '/admin/achievements', label: 'Logros', icon: TrophyIcon },
   { href: '/admin/news', label: 'Noticias', icon: ImageIcon },

@@ -13,11 +13,11 @@ export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 // background, which matches the app's dark theme.
 const NEWS_IMAGE_MAX_WIDTH = 1280;
 
-async function downscale(file: File): Promise<Blob> {
+export async function downscale(file: File, maxWidth = NEWS_IMAGE_MAX_WIDTH): Promise<Blob> {
   if (file.type === 'image/gif' || file.type === 'image/svg+xml') return file; // animation / vector
   try {
     const bitmap = await createImageBitmap(file);
-    const scale = Math.min(1, NEWS_IMAGE_MAX_WIDTH / bitmap.width);
+    const scale = Math.min(1, maxWidth / bitmap.width);
     const canvas = document.createElement('canvas');
     canvas.width = Math.round(bitmap.width * scale);
     canvas.height = Math.round(bitmap.height * scale);
