@@ -1,8 +1,10 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { AdminClass, ClassRoster, cancelClass, listClassRoster, listUpcomingClasses } from '@/lib/classes';
-import { Badge, Button, Card, EmptyState, ErrorBanner, PageHeader } from '@/components/ui';
+import { AdminClass, ClassRoster, STUDIO_TZ, cancelClass, listClassRoster, listUpcomingClasses } from '@/lib/classes';
+import { describeError } from '@/lib/errors';
+import { Badge, Button, EmptyState, ErrorBanner, PageHeader, TableCard, Toggle } from '@/components/ui';
+import { toast, toastError } from '@/components/toast';
 import { useConfirm } from '@/components/confirm-dialog';
 import { ChevronRightIcon } from '@/components/icons';
 
@@ -25,10 +27,6 @@ const rosterStatusLabel: Record<ClassRoster['status'], string> = {
   cancelled: 'Cancelado',
 };
 
-// Always render in the studio's own timezone, independent of whatever
-// timezone the admin's browser happens to be in.
-const STUDIO_TZ = 'America/Bogota';
-
 function dayKey(iso: string) {
   return new Date(iso).toLocaleDateString('es', { timeZone: STUDIO_TZ, weekday: 'long', day: '2-digit', month: 'short' });
 }
@@ -38,6 +36,7 @@ export default function ClassesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [showCancelled, setShowCancelled] = useState(false);
 
   const [rosterClass, setRosterClass] = useState<AdminClass | null>(null);
   const [roster, setRoster] = useState<ClassRoster[]>([]);
@@ -46,11 +45,11 @@ export default function ClassesPage() {
   const { confirm, dialog: confirmDialog } = useConfirm();
 
   async function refresh() {
-    setLoading(true);
     try {
       setClasses(await listUpcomingClasses());
+      setError(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Error al cargar clases.');
+      setError(describeError(e, 'No se pudieron cargar las clases.'));
     } finally {
       setLoading(false);
     }
@@ -63,8 +62,11 @@ export default function ClassesPage() {
   async function handleCancel(c: AdminClass) {
     const ok = await confirm({
       title: 'Cancelar clase',
-      message: `¿Cancelar "${c.title}"? Se reembolsará el crédito a quienes ya reservaron.`,
-      confirmLabel: 'Sí, cancelar',
+      message: c.bookedCount
+        ? `¿Cancelar "${c.title}"? Se reembolsará el crédito y se notificará a ${c.bookedCount} persona${c.bookedCount === 1 ? '' : 's'}.`
+        : `¿Cancelar "${c.title}"? Nadie ha reservado todavía.`,
+      confirmLabel: 'Sí, cancelar clase',
+      cancelLabel: 'Volver',
       tone: 'danger',
     });
     if (!ok) return;
@@ -72,48 +74,61 @@ export default function ClassesPage() {
     const { error } = await cancelClass(c.id);
     setCancellingId(null);
     if (error) {
-      setError(error.message);
+      toastError(error, 'No se pudo cancelar la clase.');
       return;
     }
+    toast('Clase cancelada.');
     refresh();
   }
 
   async function openRoster(c: AdminClass) {
     setRosterClass(c);
+    setRoster([]);
     setRosterLoading(true);
     modalRef.current?.showModal();
     try {
       setRoster(await listClassRoster(c.id));
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Error al cargar inscritos.');
+      toastError(e, 'No se pudieron cargar los inscritos.');
+      modalRef.current?.close();
     } finally {
       setRosterLoading(false);
     }
   }
 
   const groups = new Map<string, AdminClass[]>();
-  for (const c of classes) {
+  const cancelledCount = classes.filter((c) => c.status === 'cancelled').length;
+  const visible = showCancelled ? classes : classes.filter((c) => c.status !== 'cancelled');
+  for (const c of visible) {
     const key = dayKey(c.startsAt);
     groups.set(key, [...(groups.get(key) ?? []), c]);
   }
 
   return (
     <div className="space-y-8">
-      <PageHeader title="Próximas clases" description="Todas las clases futuras, agrupadas por fecha. El horario de cada semana se arma en Horario semanal." />
+      <PageHeader
+        title="Próximas clases"
+        description="Todas las clases futuras, agrupadas por fecha. Haz clic en una clase para ver los inscritos. El horario se arma en Horario semanal."
+        action={
+          cancelledCount > 0 && (
+            <Toggle checked={showCancelled} onChange={() => setShowCancelled((v) => !v)} label={`Mostrar canceladas (${cancelledCount})`} />
+          )
+        }
+      />
 
       {error && <ErrorBanner>{error}</ErrorBanner>}
 
       {loading ? (
         <p className="text-sm text-ink-soft">Cargando...</p>
-      ) : classes.length === 0 ? (
+      ) : visible.length === 0 ? (
         <EmptyState>No hay clases programadas.</EmptyState>
       ) : (
         <div className="space-y-6">
           {[...groups.entries()].map(([day, dayClasses]) => (
             <div key={day}>
               <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-muted">{day}</h3>
-              <Card className="overflow-hidden">
-                <table className="w-full border-collapse text-sm">
+              <TableCard>
+                <table className="w-full min-w-[640px] border-collapse text-sm">
                   <thead>
                     <tr className="border-b border-line bg-surface-alt text-left text-xs uppercase tracking-wide text-ink-muted">
                       <th className="px-4 py-2.5 font-medium">Hora</th>
@@ -132,7 +147,15 @@ export default function ClassesPage() {
                         <tr
                           key={c.id}
                           onClick={() => openRoster(c)}
-                          className="cursor-pointer border-b border-line text-ink last:border-0 hover:bg-surface-alt/60"
+                          onKeyDown={(e) => {
+                            if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
+                              e.preventDefault();
+                              openRoster(c);
+                            }
+                          }}
+                          tabIndex={0}
+                          aria-label={`Ver inscritos de ${c.title}`}
+                          className={`cursor-pointer border-b border-line text-ink last:border-0 hover:bg-surface-alt/60 focus-visible:bg-surface-alt focus-visible:outline-none ${isCancelled ? 'opacity-60' : ''}`}
                         >
                           <td className="px-4 py-3 tabular-nums text-ink-soft">
                             {new Date(c.startsAt).toLocaleTimeString('es', { timeZone: STUDIO_TZ, hour: '2-digit', minute: '2-digit' })}
@@ -170,7 +193,7 @@ export default function ClassesPage() {
                     })}
                   </tbody>
                 </table>
-              </Card>
+              </TableCard>
             </div>
           ))}
         </div>

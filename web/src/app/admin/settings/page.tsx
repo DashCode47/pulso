@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { getStudioSettings, updateStudioSettings } from '@/lib/settings';
+import { describeError } from '@/lib/errors';
 import { Button, Card, ErrorBanner, Input, Label, PageHeader } from '@/components/ui';
+import { toast, toastError } from '@/components/toast';
 
 export default function SettingsPage() {
   const [cutoffHours, setCutoffHours] = useState('');
@@ -10,7 +12,7 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
+  const [dirty, setDirty] = useState(false);
 
   useEffect(() => {
     getStudioSettings()
@@ -18,22 +20,20 @@ export default function SettingsPage() {
         setCutoffHours(String(s.cancellationCutoffHours));
         setWhatsapp(s.supportWhatsapp ?? '');
       })
-      .catch((e) => setError(e instanceof Error ? e.message : 'Error al cargar configuración.'))
+      .catch((e) => setError(describeError(e, 'No se pudo cargar la configuración.')))
       .finally(() => setLoading(false));
   }, []);
 
   function edit(set: (v: string) => void) {
     return (e: React.ChangeEvent<HTMLInputElement>) => {
       set(e.target.value);
-      setSaved(false);
+      setDirty(true);
     };
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
-    setError(null);
-    setSaved(false);
 
     // Accept "+57 300 123 4567"; the DB stores digits only.
     const digits = whatsapp.replace(/\D/g, '');
@@ -43,11 +43,13 @@ export default function SettingsPage() {
     });
     setSaving(false);
     if (error) {
-      setError(error.code === '23514' ? 'Número de WhatsApp inválido: usa el código de país y entre 8 y 15 dígitos.' : error.message);
+      if (error.code === '23514') toast('Número de WhatsApp inválido: usa el código de país y entre 8 y 15 dígitos.', 'error');
+      else toastError(error, 'No se pudo guardar la configuración.');
       return;
     }
     setWhatsapp(digits);
-    setSaved(true);
+    setDirty(false);
+    toast('Configuración guardada.');
   }
 
   return (
@@ -87,10 +89,10 @@ export default function SettingsPage() {
             </div>
 
             <div className="flex items-center gap-3">
-              <Button type="submit" disabled={saving}>
+              <Button type="submit" disabled={saving || !dirty}>
                 {saving ? 'Guardando...' : 'Guardar'}
               </Button>
-              {saved && <p className="text-xs font-medium text-mint">Guardado.</p>}
+              {dirty && <p className="text-xs text-ink-muted">Cambios sin guardar</p>}
             </div>
           </form>
         )}

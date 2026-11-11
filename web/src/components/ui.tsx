@@ -1,4 +1,11 @@
-import type { ButtonHTMLAttributes, InputHTMLAttributes, LabelHTMLAttributes, ReactNode, SelectHTMLAttributes } from "react";
+import type {
+  ButtonHTMLAttributes,
+  InputHTMLAttributes,
+  LabelHTMLAttributes,
+  ReactNode,
+  SelectHTMLAttributes,
+  TextareaHTMLAttributes,
+} from "react";
 
 // Small shared UI kit for the admin panel -- every page reuses these instead
 // of repeating the same Tailwind className strings for buttons/inputs/badges.
@@ -24,7 +31,7 @@ export function Button({
 }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: keyof typeof buttonVariants; size?: keyof typeof buttonSizes }) {
   return (
     <button
-      className={`inline-flex items-center justify-center gap-1.5 rounded-full font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${buttonVariants[variant]} ${buttonSizes[size]} ${className}`}
+      className={`inline-flex items-center justify-center gap-1.5 rounded-full font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mint/50 disabled:cursor-not-allowed disabled:opacity-40 ${buttonVariants[variant]} ${buttonSizes[size]} ${className}`}
       {...props}
     />
   );
@@ -39,6 +46,10 @@ const controlClass =
 
 export function Input({ className = "", ...props }: InputHTMLAttributes<HTMLInputElement>) {
   return <input className={`${controlClass} ${className}`} {...props} />;
+}
+
+export function Textarea({ className = "", ...props }: TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  return <textarea className={`${controlClass} ${className}`} {...props} />;
 }
 
 export function Select({ className = "", ...props }: SelectHTMLAttributes<HTMLSelectElement>) {
@@ -62,11 +73,14 @@ export function Card({ className = "", children }: { className?: string; childre
   return <div className={`rounded-2xl border border-line bg-surface ${className}`}>{children}</div>;
 }
 
-export function PageHeader({ title, description }: { title: string; description?: string }) {
+export function PageHeader({ title, description, action }: { title: string; description?: string; action?: ReactNode }) {
   return (
-    <div>
-      <h2 className="text-xl font-semibold tracking-tight text-ink">{title}</h2>
-      {description && <p className="mt-1 text-sm text-ink-soft">{description}</p>}
+    <div className="flex flex-wrap items-start justify-between gap-4">
+      <div className="min-w-0 flex-1">
+        <h2 className="text-xl font-semibold tracking-tight text-ink">{title}</h2>
+        {description && <p className="mt-1 max-w-3xl text-sm text-ink-soft">{description}</p>}
+      </div>
+      {action}
     </div>
   );
 }
@@ -77,4 +91,28 @@ export function ErrorBanner({ children }: { children: ReactNode }) {
 
 export function EmptyState({ children }: { children: ReactNode }) {
   return <p className="rounded-2xl border border-dashed border-line px-4 py-8 text-center text-sm text-ink-muted">{children}</p>;
+}
+
+// Pill-shaped on/off switch -- reads as clickable, unlike a bare badge.
+export function Toggle({ checked, onChange, label, disabled }: { checked: boolean; onChange: () => void; label: string; disabled?: boolean }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      disabled={disabled}
+      onClick={onChange}
+      className="inline-flex items-center gap-2 rounded-full text-xs font-medium text-ink-soft hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mint/50 disabled:opacity-40"
+    >
+      <span className={`relative h-5 w-9 rounded-full transition-colors ${checked ? "bg-mint" : "bg-surface-alt ring-1 ring-line"}`}>
+        <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-ink transition-all ${checked ? "left-4.5" : "left-0.5"}`} />
+      </span>
+      {label}
+    </button>
+  );
+}
+
+// Shared shell for every data table: rounded card that scrolls sideways on phones.
+export function TableCard({ children }: { children: ReactNode }) {
+  return <div className="overflow-x-auto rounded-2xl border border-line bg-surface">{children}</div>;
 }

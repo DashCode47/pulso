@@ -17,7 +17,9 @@ import {
   weekdayOptions,
 } from '@/lib/achievements';
 import { Instructor, listInstructors } from '@/lib/instructors';
-import { Badge, Button, Card, EmptyState, ErrorBanner, Input, Label, PageHeader, Select } from '@/components/ui';
+import { describeError } from '@/lib/errors';
+import { Badge, Button, Card, EmptyState, ErrorBanner, Input, Label, PageHeader, Select, TableCard } from '@/components/ui';
+import { toast, toastError } from '@/components/toast';
 import { useConfirm } from '@/components/confirm-dialog';
 
 type FormState = {
@@ -105,13 +107,13 @@ export default function AchievementsPage() {
   const today = bogotaToday();
 
   async function refresh() {
-    setLoading(true);
     try {
       const [achievements, coaches] = await Promise.all([listAchievements(), listInstructors()]);
       setItems(achievements);
       setInstructors(coaches);
+      setError(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Error al cargar logros.');
+      setError(describeError(e, 'No se pudieron cargar los logros.'));
     } finally {
       setLoading(false);
     }
@@ -184,13 +186,13 @@ export default function AchievementsPage() {
     }
 
     setSaving(true);
-    setError(null);
     const { error } = editingId ? await updateAchievement(editingId, input) : await createAchievement(input);
     setSaving(false);
     if (error) {
-      setError(error.message);
+      toastError(error, 'No se pudo guardar el logro.');
       return;
     }
+    toast(editingId ? 'Logro actualizado.' : `Logro "${input.name}" creado.`);
     startCreate();
     refresh();
   }
@@ -208,9 +210,10 @@ export default function AchievementsPage() {
     if (!ok) return;
     const { error } = await removeAchievement(a.id);
     if (error) {
-      setError(error.message);
+      toastError(error, 'No se pudo eliminar el logro.');
       return;
     }
+    toast('Logro eliminado.');
     if (editingId === a.id) startCreate();
     refresh();
   }
@@ -384,8 +387,8 @@ export default function AchievementsPage() {
       ) : items.length === 0 ? (
         <EmptyState>Sin logros todavía.</EmptyState>
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-line bg-surface">
-          <table className="w-full border-collapse text-sm">
+        <TableCard>
+          <table className="w-full min-w-[800px] border-collapse text-sm">
             <thead>
               <tr className="border-b border-line bg-surface-alt text-left text-xs uppercase tracking-wide text-ink-muted">
                 <th className="px-4 py-2.5 font-medium">Logro</th>
@@ -437,7 +440,7 @@ export default function AchievementsPage() {
               })}
             </tbody>
           </table>
-        </div>
+        </TableCard>
       )}
 
       {confirmDialog}

@@ -13,9 +13,11 @@ import {
   searchMembers,
   updateMembership,
 } from '@/lib/members';
-import { STUDIO_TZ } from '@/lib/classes';
-import { Badge, Button, EmptyState, ErrorBanner, Input, Label, PageHeader } from '@/components/ui';
+import { STUDIO_TZ, addDays } from '@/lib/classes';
+import { describeError } from '@/lib/errors';
+import { Badge, Button, EmptyState, ErrorBanner, Input, Label, PageHeader, TableCard } from '@/components/ui';
 import { useConfirm } from '@/components/confirm-dialog';
+import { toast, toastError } from '@/components/toast';
 
 const membershipStatusLabel: Record<NonNullable<Member['membershipStatus']>, string> = {
   active: 'Activa',
@@ -45,17 +47,25 @@ function minCycleStart() {
   return d.toISOString().slice(0, 10);
 }
 
-const dbErrorMessages: Record<string, string> = {
-  cycle_already_over: 'Con esa fecha de inicio la membresía ya habría vencido.',
-  negative_balance: 'El saldo no puede quedar negativo.',
-};
-const describeError = (message: string) => dbErrorMessages[message] ?? message;
+const EXPIRING_DAYS = 7;
+const isExpiringSoon = (m: Member) => m.membershipStatus === 'active' && !!m.cycleEnd && m.cycleEnd <= addDays(today(), EXPIRING_DAYS);
+
+type Filter = 'all' | 'active' | 'expiring' | 'expired' | 'none';
+const filters: { value: Filter; label: string; match: (m: Member) => boolean }[] = [
+  { value: 'all', label: 'Todos', match: () => true },
+  { value: 'active', label: 'Activas', match: (m) => m.membershipStatus === 'active' },
+  { value: 'expiring', label: `Vencen en ${EXPIRING_DAYS} días`, match: isExpiringSoon },
+  { value: 'expired', label: 'Vencidas', match: (m) => m.membershipStatus === 'expired' },
+  { value: 'none', label: 'Sin membresía', match: (m) => !m.membershipStatus || m.membershipStatus === 'cancelled' },
+];
 
 export default function MembersPage() {
   const [query, setQuery] = useState('');
+  const [filter, setFilter] = useState<Filter>('all');
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [searching, setSearching] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const [selected, setSelected] = useState<Member | null>(null);
   const [membership, setMembership] = useState<Membership | null>(null);
@@ -71,20 +81,25 @@ export default function MembersPage() {
   const [renewing, setRenewing] = useState(false);
   const { confirm, dialog: confirmDialog } = useConfirm();
 
-  async function refresh(q: string) {
-    setLoading(true);
+  // Keeps the current table on screen while refreshing -- only the very first
+  // load shows the loading state, so saves and searches don't flash/jump.
+  async function refresh(q = query) {
+    setSearching(true);
     try {
       setMembers(await searchMembers(q));
+      setLoadError(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Error al buscar miembros.');
+      setLoadError(describeError(e, 'No se pudieron cargar los miembros.'));
     } finally {
       setLoading(false);
+      setSearching(false);
     }
   }
 
   useEffect(() => {
     const id = setTimeout(() => refresh(query), 250);
     return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query]);
 
   async function openMember(m: Member) {
@@ -104,7 +119,8 @@ export default function MembersPage() {
           : emptyForm(),
       );
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Error al cargar membresía.');
+      toastError(e, 'No se pudo cargar la membresía.');
+      modalRef.current?.close();
     } finally {
       setDetailLoading(false);
     }
@@ -121,7 +137,6 @@ export default function MembersPage() {
     e.preventDefault();
     if (!selected) return;
     setSaving(true);
-    setError(null);
 
     let { error } = editableMembership
       ? await updateMembership(editableMembership.id, form)
@@ -130,35 +145,39 @@ export default function MembersPage() {
     if (!error && isExpired) ({ error } = await grantCreditsBulk([selected.userId], form.cycleStart));
     setSaving(false);
     if (error) {
-      setError(describeError(error.message));
+      toastError(error, 'No se pudo guardar la membresía.');
       return;
     }
+    toast(isExpired ? `Membresía de ${selected.fullName} renovada.` : editableMembership ? 'Membresía actualizada.' : `Membresía asignada a ${selected.fullName}.`);
     modalRef.current?.close();
-    refresh(query);
+    refresh();
   }
 
   async function handleCancelMembership() {
     if (!editableMembership || !selected) return;
     const ok = await confirm({
       title: 'Cancelar membresía',
-      message: `Se cancelarán las reservas futuras de ${selected.fullName} y perderá sus créditos.`,
-      confirmLabel: 'Sí, cancelar',
+      message: `Se cancelarán las reservas futuras de ${selected.fullName} y perderá sus ${selected.creditsBalance} créditos. No se puede deshacer.`,
+      confirmLabel: 'Sí, cancelar membresía',
+      cancelLabel: 'Volver',
+      tone: 'danger',
     });
     if (!ok) return;
     const { error } = await cancelMembership(editableMembership.id);
     if (error) {
-      setError(describeError(error.message));
+      toastError(error, 'No se pudo cancelar la membresía.');
       return;
     }
+    toast(`Membresía de ${selected.fullName} cancelada.`);
     modalRef.current?.close();
-    refresh(query);
+    refresh();
   }
 
   async function handleRenewOne() {
     if (!selected) return;
     const ok = await confirm({
       title: 'Renovar créditos',
-      message: `¿Renovar a ${selected.fullName} desde hoy? Los créditos no usados se pierden.`,
+      message: `¿Renovar a ${selected.fullName} desde hoy? El ciclo reinicia y los créditos no usados se pierden.`,
       confirmLabel: 'Sí, renovar',
     });
     if (!ok) return;
@@ -166,36 +185,39 @@ export default function MembersPage() {
     const { error } = await grantCreditsBulk([selected.userId], today());
     setRenewing(false);
     if (error) {
-      setError(describeError(error.message));
+      toastError(error, 'No se pudo renovar.');
       return;
     }
+    toast(`${selected.fullName} renovado.`);
     modalRef.current?.close();
-    refresh(query);
+    refresh();
   }
 
   async function handleAdjustCredits(e: React.FormEvent) {
     e.preventDefault();
     if (!selected) return;
     const amount = Number(creditAmount);
-    if (!amount) return;
+    if (!Number.isInteger(amount) || amount === 0) return;
     if (selected.creditsBalance + amount < 0) {
-      setError(dbErrorMessages.negative_balance);
+      toastError({ message: 'negative_balance' });
       return;
     }
     setAdjustingCredits(true);
     const { error } = await adjustCredits(selected.userId, amount, creditNote.trim());
     setAdjustingCredits(false);
     if (error) {
-      setError(describeError(error.message));
+      toastError(error, 'No se pudieron ajustar los créditos.');
       return;
     }
     setCreditAmount('');
     setCreditNote('');
     setSelected({ ...selected, creditsBalance: selected.creditsBalance + amount });
-    refresh(query);
+    toast(`${amount > 0 ? '+' : ''}${amount} créditos aplicados.`);
+    refresh();
   }
 
-  const renewableMembers = members.filter((m) => m.membershipStatus === 'active' || m.membershipStatus === 'expired');
+  const visible = members.filter(filters.find((f) => f.value === filter)!.match);
+  const renewableMembers = visible.filter((m) => m.membershipStatus === 'active' || m.membershipStatus === 'expired');
 
   function toggleChecked(userId: string) {
     setCheckedIds((prev) => {
@@ -214,7 +236,7 @@ export default function MembersPage() {
     if (checkedIds.size === 0) return;
     const ok = await confirm({
       title: 'Renovar créditos',
-      message: `¿Renovar ${checkedIds.size} miembro(s) desde hoy? Los créditos no usados se pierden.`,
+      message: `¿Renovar ${checkedIds.size} miembro${checkedIds.size === 1 ? '' : 's'} desde hoy? El ciclo reinicia y los créditos no usados se pierden.`,
       confirmLabel: 'Sí, renovar',
     });
     if (!ok) return;
@@ -222,99 +244,143 @@ export default function MembersPage() {
     const { error } = await grantCreditsBulk([...checkedIds], today());
     setRenewing(false);
     if (error) {
-      setError(describeError(error.message));
+      toastError(error, 'No se pudo renovar.');
       return;
     }
+    toast(`${checkedIds.size} miembro${checkedIds.size === 1 ? '' : 's'} renovado${checkedIds.size === 1 ? '' : 's'}.`);
     setCheckedIds(new Set());
-    refresh(query);
+    refresh();
   }
 
   return (
     <div className="space-y-6">
       <PageHeader title="Miembros" description="Busca un miembro para asignar o editar su membresía y créditos." />
 
-      <Input
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        placeholder="Buscar por nombre..."
-        className="max-w-sm"
-      />
+      <div className="flex flex-wrap items-center gap-3">
+        <Input
+          type="search"
+          value={query}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setCheckedIds(new Set()); // a selection only makes sense for the rows on screen
+          }}
+          placeholder="Buscar por nombre..."
+          aria-label="Buscar miembros"
+          className="max-w-sm"
+        />
+        <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filtrar por membresía">
+          {filters.map((f) => {
+            const count = members.filter(f.match).length;
+            return (
+              <button
+                key={f.value}
+                type="button"
+                aria-pressed={filter === f.value}
+                onClick={() => {
+                  setFilter(f.value);
+                  setCheckedIds(new Set());
+                }}
+                className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                  filter === f.value ? 'border-mint bg-mint-soft text-ink' : 'border-line text-ink-soft hover:text-ink'
+                }`}
+              >
+                {f.label} <span className="tabular-nums text-ink-muted">{count}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
-      {error && <ErrorBanner>{error}</ErrorBanner>}
+      {loadError && <ErrorBanner>{loadError}</ErrorBanner>}
 
       {checkedIds.size > 0 && (
-        <div className="flex items-center gap-3 rounded-lg bg-mint-soft px-4 py-2.5 text-sm">
-          <span className="text-ink">{checkedIds.size} seleccionado(s)</span>
+        <div className="flex flex-wrap items-center gap-3 rounded-lg bg-mint-soft px-4 py-2.5 text-sm">
+          <span className="text-ink">
+            {checkedIds.size} seleccionado{checkedIds.size === 1 ? '' : 's'}
+          </span>
           <Button size="sm" onClick={handleRenewSelected} disabled={renewing}>
             {renewing ? 'Renovando...' : 'Renovar créditos'}
+          </Button>
+          <Button size="sm" variant="link" onClick={() => setCheckedIds(new Set())}>
+            Quitar selección
           </Button>
         </div>
       )}
 
       {loading ? (
         <p className="text-sm text-ink-soft">Cargando...</p>
-      ) : members.length === 0 ? (
-        <EmptyState>Sin resultados.</EmptyState>
+      ) : visible.length === 0 ? (
+        <EmptyState>{query ? `Ningún miembro coincide con "${query}".` : 'No hay miembros en esta categoría.'}</EmptyState>
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-line bg-surface">
-          <table className="w-full border-collapse text-sm">
-            <thead>
-              <tr className="border-b border-line bg-surface-alt text-left text-xs uppercase tracking-wide text-ink-muted">
-                <th className="w-10 px-4 py-2.5">
-                  <input
-                    type="checkbox"
-                    className="accent-mint"
-                    checked={renewableMembers.length > 0 && checkedIds.size === renewableMembers.length}
-                    onChange={toggleAllChecked}
-                  />
-                </th>
-                <th className="px-4 py-2.5 font-medium">Nombre</th>
-                <th className="px-4 py-2.5 font-medium">Créditos</th>
-                <th className="px-4 py-2.5 font-medium">Membresía</th>
-                <th className="px-4 py-2.5 font-medium">Desde</th>
-                <th className="px-4 py-2.5 font-medium">Vence</th>
-                <th className="px-4 py-2.5" />
-              </tr>
-            </thead>
-            <tbody>
-              {members.map((m) => (
-                <tr key={m.userId} className="border-b border-line text-ink last:border-0 hover:bg-surface-alt/60">
-                  <td className="px-4 py-3">
+        <div className={`transition-opacity ${searching ? 'opacity-60' : ''}`}>
+          <TableCard>
+            <table className="w-full min-w-[640px] border-collapse text-sm">
+              <thead>
+                <tr className="border-b border-line bg-surface-alt text-left text-xs uppercase tracking-wide text-ink-muted">
+                  <th className="w-10 px-4 py-2.5">
                     <input
                       type="checkbox"
                       className="accent-mint"
-                      disabled={m.membershipStatus !== 'active' && m.membershipStatus !== 'expired'}
-                      checked={checkedIds.has(m.userId)}
-                      onChange={() => toggleChecked(m.userId)}
+                      aria-label="Seleccionar todos"
+                      disabled={renewableMembers.length === 0}
+                      checked={renewableMembers.length > 0 && checkedIds.size === renewableMembers.length}
+                      onChange={toggleAllChecked}
                     />
-                  </td>
-                  <td className="px-4 py-3 font-medium">{m.fullName}</td>
-                  <td className="px-4 py-3 tabular-nums text-ink-soft">{m.creditsBalance}</td>
-                  <td className="px-4 py-3">
-                    {m.membershipStatus ? (
-                      <Badge tone={membershipStatusTone[m.membershipStatus]}>{membershipStatusLabel[m.membershipStatus]}</Badge>
-                    ) : (
-                      <span className="text-ink-muted">Sin membresía</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-ink-soft">{m.cycleStart ? formatDate(m.cycleStart) : '—'}</td>
-                  <td className="px-4 py-3 text-ink-soft">{m.cycleEnd ? formatDate(m.cycleEnd) : '—'}</td>
-                  <td className="px-4 py-3 text-right">
-                    <Button variant="link" size="sm" onClick={() => openMember(m)}>
-                      Gestionar
-                    </Button>
-                  </td>
+                  </th>
+                  <th className="px-4 py-2.5 font-medium">Nombre</th>
+                  <th className="px-4 py-2.5 font-medium">Créditos</th>
+                  <th className="px-4 py-2.5 font-medium">Membresía</th>
+                  <th className="px-4 py-2.5 font-medium">Desde</th>
+                  <th className="px-4 py-2.5 font-medium">Vence</th>
+                  <th className="px-4 py-2.5" />
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {visible.map((m) => (
+                  <tr key={m.userId} className="border-b border-line text-ink last:border-0 hover:bg-surface-alt/60">
+                    <td className="px-4 py-3">
+                      <input
+                        type="checkbox"
+                        className="accent-mint"
+                        aria-label={`Seleccionar ${m.fullName}`}
+                        disabled={m.membershipStatus !== 'active' && m.membershipStatus !== 'expired'}
+                        checked={checkedIds.has(m.userId)}
+                        onChange={() => toggleChecked(m.userId)}
+                      />
+                    </td>
+                    <td className="px-4 py-3 font-medium">{m.fullName}</td>
+                    <td className="px-4 py-3 tabular-nums text-ink-soft">{m.creditsBalance}</td>
+                    <td className="px-4 py-3">
+                      {m.membershipStatus ? (
+                        <Badge tone={membershipStatusTone[m.membershipStatus]}>{membershipStatusLabel[m.membershipStatus]}</Badge>
+                      ) : (
+                        <span className="text-ink-muted">Sin membresía</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-ink-soft">{m.cycleStart ? formatDate(m.cycleStart) : '—'}</td>
+                    <td className={`px-4 py-3 ${isExpiringSoon(m) ? 'font-medium text-coral' : 'text-ink-soft'}`}>
+                      {m.cycleEnd ? formatDate(m.cycleEnd) : '—'}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <Button variant="ghost" size="sm" onClick={() => openMember(m)}>
+                        Gestionar
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </TableCard>
         </div>
       )}
 
       <dialog ref={modalRef} className="m-auto w-full max-w-md rounded-2xl border border-line bg-surface p-0 text-ink">
         <div className="space-y-5 p-5">
           <div className="flex items-start justify-between">
-            <h3 className="text-sm font-semibold text-ink">{selected?.fullName}</h3>
+            <div>
+              <h3 className="text-sm font-semibold text-ink">{selected?.fullName}</h3>
+              <p className="text-xs text-ink-soft">Saldo actual: {selected?.creditsBalance} créditos</p>
+            </div>
             <button onClick={() => modalRef.current?.close()} className="text-sm text-ink-muted hover:text-ink">
               Cerrar
             </button>
@@ -372,54 +438,53 @@ export default function MembersPage() {
                     />
                   </div>
                 </div>
-                <div className="flex items-center justify-between pt-1">
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
                   <div className="flex gap-2">
                     <Button type="submit" size="sm" disabled={saving}>
-                      {isExpired ? 'Renovar membresía' : editableMembership ? 'Guardar cambios' : 'Asignar membresía'}
+                      {saving ? 'Guardando...' : isExpired ? 'Renovar membresía' : editableMembership ? 'Guardar cambios' : 'Asignar membresía'}
                     </Button>
                     {membership?.status === 'active' && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        disabled={renewing}
-                        onClick={handleRenewOne}
-                      >
+                      <Button type="button" variant="ghost" size="sm" disabled={renewing} onClick={handleRenewOne}>
                         Renovar créditos
                       </Button>
                     )}
                   </div>
                   {/* An expired membership has nothing left to cancel: bookings and credits were already released. */}
                   {editableMembership && !isExpired && (
-                    <button type="button" onClick={handleCancelMembership} className="text-xs text-coral hover:underline">
+                    <Button type="button" variant="dangerLink" size="sm" onClick={handleCancelMembership}>
                       Cancelar membresía
-                    </button>
+                    </Button>
                   )}
                 </div>
               </form>
 
               <form onSubmit={handleAdjustCredits} className="space-y-3 border-t border-line pt-4">
-                <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
-                  Ajustar créditos (saldo actual: {selected?.creditsBalance})
-                </p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">Ajustar créditos</p>
                 <div className="flex gap-2">
-                  <Input
-                    type="number"
-                    placeholder="+5 / -2"
-                    value={creditAmount}
-                    onChange={(e) => setCreditAmount(e.target.value)}
-                    className="w-24"
-                  />
-                  <Input
-                    placeholder="Nota (opcional)"
-                    value={creditNote}
-                    onChange={(e) => setCreditNote(e.target.value)}
-                    className="flex-1"
-                  />
-                  <Button type="submit" size="sm" disabled={adjustingCredits || !creditAmount}>
+                  <div className="w-24">
+                    <Label htmlFor="creditAmount">Cantidad</Label>
+                    <Input
+                      id="creditAmount"
+                      type="number"
+                      step={1}
+                      placeholder="+5 / -2"
+                      value={creditAmount}
+                      onChange={(e) => setCreditAmount(e.target.value)}
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <Label htmlFor="creditNote">Nota (opcional)</Label>
+                    <Input id="creditNote" placeholder="Ej. cortesía" value={creditNote} onChange={(e) => setCreditNote(e.target.value)} />
+                  </div>
+                  <Button type="submit" size="sm" className="self-end" disabled={adjustingCredits || !Number(creditAmount)}>
                     Aplicar
                   </Button>
                 </div>
+                {!!Number(creditAmount) && selected && (
+                  <p className="text-xs text-ink-soft">
+                    Nuevo saldo: {selected.creditsBalance} → {selected.creditsBalance + Number(creditAmount)}
+                  </p>
+                )}
               </form>
             </>
           )}

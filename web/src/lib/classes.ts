@@ -76,15 +76,18 @@ export type ClassInput = {
 };
 
 // RLS lets admins insert directly (mirrors mobile/services/backend/classes.ts).
-export async function createClass(input: ClassInput) {
+// One insert for all rows, so a multi-day create is all-or-nothing.
+export async function createClasses(inputs: ClassInput[]) {
   const supabase = createClient();
-  const { error } = await supabase.from('classes').insert({
-    title: input.title,
-    instructor_id: input.instructorId,
-    starts_at: input.startsAt,
-    duration_minutes: input.durationMinutes,
-    capacity: input.capacity,
-  });
+  const { error } = await supabase.from('classes').insert(
+    inputs.map((input) => ({
+      title: input.title,
+      instructor_id: input.instructorId,
+      starts_at: input.startsAt,
+      duration_minutes: input.durationMinutes,
+      capacity: input.capacity,
+    })),
+  );
   return { error };
 }
 

@@ -3,7 +3,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { NewsCtaHref, NewsInput, NewsItem, createNews, deleteNews, listAllNews, setNewsActive, updateNews } from '@/lib/news';
 import { uploadNewsImage } from '@/lib/storage';
-import { Badge, Button, Card, EmptyState, ErrorBanner, Input, Label, PageHeader, Select } from '@/components/ui';
+import { bogotaDate, bogotaInstant, bogotaTime } from '@/lib/classes';
+import { describeError } from '@/lib/errors';
+import { Badge, Button, Card, EmptyState, ErrorBanner, Input, Label, PageHeader, Select, TableCard, Textarea, Toggle } from '@/components/ui';
+import { toast, toastError } from '@/components/toast';
 import { CardPreview, DetailPreview } from '@/components/news-preview';
 import { useConfirm } from '@/components/confirm-dialog';
 
@@ -14,10 +17,15 @@ const ctaOptions: { value: NewsCtaHref | ''; label: string }[] = [
   { value: '/leaderboard', label: 'Ranking' },
 ];
 
+// datetime-local values are studio (Bogota) wall-clock time, like every other
+// date in the panel, regardless of the admin's own browser timezone.
 function toLocalInput(iso: string) {
-  const d = new Date(iso);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  return `${bogotaDate(iso)}T${bogotaTime(iso)}`;
+}
+
+function fromLocalInput(value: string) {
+  const [date, time] = value.split('T');
+  return bogotaInstant(date, time);
 }
 
 type FormState = {
@@ -89,11 +97,11 @@ export default function NewsPage() {
   const previewImageUrl = objectUrl ?? form.imageUrl;
 
   async function refresh() {
-    setLoading(true);
     try {
       setItems(await listAllNews());
+      setError(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Error al cargar noticias.');
+      setError(describeError(e, 'No se pudieron cargar las noticias.'));
     } finally {
       setLoading(false);
     }
@@ -128,14 +136,13 @@ export default function NewsPage() {
     e.preventDefault();
     if (!canSubmit || saving) return;
     setSaving(true);
-    setError(null);
 
     let imageUrl = form.imageUrl;
     if (form.imageFile) {
       const { url, error: uploadError } = await uploadNewsImage(form.imageFile);
       if (uploadError || !url) {
         setSaving(false);
-        setError(uploadError?.message ?? 'No se pudo subir la imagen.');
+        toastError(uploadError, 'No se pudo subir la imagen. Revisa que pese menos de 5 MB.');
         return;
       }
       imageUrl = url;
@@ -149,26 +156,30 @@ export default function NewsPage() {
       imageUrl,
       ctaHref: form.ctaHref || null,
       ctaLabel: form.ctaHref ? form.ctaLabel.trim() : null,
-      publishedAt: new Date(form.publishedAt).toISOString(),
+      publishedAt: fromLocalInput(form.publishedAt),
       active: form.active,
     };
     const { error } = editingId ? await updateNews(editingId, input) : await createNews(input);
     setSaving(false);
     if (error) {
-      setError(error.message);
+      toastError(error, 'No se pudo guardar la noticia.');
       return;
     }
+    toast(editingId ? 'Noticia actualizada.' : 'Noticia publicada.');
     startCreate();
     refresh();
   }
 
   async function handleToggleActive(n: NewsItem) {
+    // Optimistic: flip it on screen right away, roll back if the save fails.
+    setItems((prev) => prev.map((x) => (x.id === n.id ? { ...x, active: !n.active } : x)));
     const { error } = await setNewsActive(n.id, !n.active);
     if (error) {
-      setError(error.message);
+      setItems((prev) => prev.map((x) => (x.id === n.id ? { ...x, active: n.active } : x)));
+      toastError(error, 'No se pudo cambiar la visibilidad.');
       return;
     }
-    refresh();
+    toast(n.active ? `"${n.title}" oculta en la app.` : `"${n.title}" visible en la app.`);
   }
 
   async function handleDelete(n: NewsItem) {
@@ -181,9 +192,10 @@ export default function NewsPage() {
     if (!ok) return;
     const { error } = await deleteNews(n.id);
     if (error) {
-      setError(error.message);
+      toastError(error, 'No se pudo eliminar la noticia.');
       return;
     }
+    toast('Noticia eliminada.');
     if (editingId === n.id) startCreate();
     refresh();
   }
@@ -214,7 +226,7 @@ export default function NewsPage() {
                 <Input id="tag" required placeholder="Reto, Nuevo, Comunidad..." value={form.tag} onChange={(e) => setForm({ ...form, tag: e.target.value })} />
               </div>
               <div>
-                <Label htmlFor="publishedAt">Fecha de publicación</Label>
+                <Label htmlFor="publishedAt">Fecha de publicación (hora Colombia)</Label>
                 <Input
                   id="publishedAt"
                   type="datetime-local"
@@ -255,14 +267,7 @@ export default function NewsPage() {
 
             <div>
               <Label htmlFor="body">Cuerpo (un párrafo por bloque, separado por línea en blanco)</Label>
-              <textarea
-                id="body"
-                required
-                rows={6}
-                value={form.bodyText}
-                onChange={(e) => setForm({ ...form, bodyText: e.target.value })}
-                className="w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-muted focus:border-ink-muted focus:outline-none focus:ring-2 focus:ring-mint/30"
-              />
+              <Textarea id="body" required rows={6} value={form.bodyText} onChange={(e) => setForm({ ...form, bodyText: e.target.value })} />
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
@@ -329,8 +334,8 @@ export default function NewsPage() {
       ) : items.length === 0 ? (
         <EmptyState>Sin noticias todavía.</EmptyState>
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-line bg-surface">
-          <table className="w-full border-collapse text-sm">
+        <TableCard>
+          <table className="w-full min-w-[720px] border-collapse text-sm">
             <thead>
               <tr className="border-b border-line bg-surface-alt text-left text-xs uppercase tracking-wide text-ink-muted">
                 <th className="px-4 py-2.5" />
@@ -338,6 +343,7 @@ export default function NewsPage() {
                 <th className="px-4 py-2.5 font-medium">Tag</th>
                 <th className="px-4 py-2.5 font-medium">Publicada</th>
                 <th className="px-4 py-2.5 font-medium">Estado</th>
+                <th className="px-4 py-2.5 font-medium">Visible</th>
                 <th className="px-4 py-2.5" />
               </tr>
             </thead>
@@ -351,12 +357,19 @@ export default function NewsPage() {
                   <td className="px-4 py-3 font-medium">{n.title}</td>
                   <td className="px-4 py-3 text-ink-soft">{n.tag}</td>
                   <td className="px-4 py-3 text-ink-soft">
-                    {new Date(n.publishedAt).toLocaleDateString('es', { day: '2-digit', month: 'short', year: 'numeric' })}
+                    {new Date(n.publishedAt).toLocaleDateString('es', { timeZone: 'America/Bogota', day: '2-digit', month: 'short', year: 'numeric' })}
                   </td>
                   <td className="px-4 py-3">
-                    <button onClick={() => handleToggleActive(n)}>
-                      <Badge tone={n.active ? 'mint' : 'neutral'}>{n.active ? 'Visible' : 'Oculta'}</Badge>
-                    </button>
+                    {!n.active ? (
+                      <Badge tone="neutral">Oculta</Badge>
+                    ) : new Date(n.publishedAt) > new Date() ? (
+                      <Badge tone="accent">Programada</Badge>
+                    ) : (
+                      <Badge tone="mint">Publicada</Badge>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    <Toggle checked={n.active} onChange={() => handleToggleActive(n)} label={n.active ? 'Sí' : 'No'} />
                   </td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex justify-end gap-3">
@@ -372,7 +385,7 @@ export default function NewsPage() {
               ))}
             </tbody>
           </table>
-        </div>
+        </TableCard>
       )}
 
       {confirmDialog}

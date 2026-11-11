@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 import { Member, searchMembers } from '@/lib/members';
 import { sendNotification } from '@/lib/notifications';
-import { Button, Card, ErrorBanner, Input, Label, PageHeader } from '@/components/ui';
+import { Button, Card, Input, Label, PageHeader, Textarea } from '@/components/ui';
+import { toast, toastError } from '@/components/toast';
 import { useConfirm } from '@/components/confirm-dialog';
 
 type Audience = 'all' | 'member';
@@ -16,8 +17,7 @@ export default function NotificationsPage() {
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [sending, setSending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [searchedQuery, setSearchedQuery] = useState(''); // query the current results belong to
   const { confirm, dialog: confirmDialog } = useConfirm();
 
   useEffect(() => {
@@ -25,8 +25,9 @@ export default function NotificationsPage() {
     const id = setTimeout(async () => {
       try {
         setResults(await searchMembers(query));
+        setSearchedQuery(query);
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'Error al buscar miembros.');
+        toastError(e, 'No se pudo buscar miembros.');
       }
     }, 250);
     return () => clearTimeout(id);
@@ -37,8 +38,6 @@ export default function NotificationsPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!canSend) return;
-    setError(null);
-    setSuccessMessage(null);
 
     if (audience === 'all') {
       const ok = await confirm({
@@ -57,13 +56,11 @@ export default function NotificationsPage() {
     });
     setSending(false);
     if (error) {
-      setError(error.message);
+      toastError(error, 'No se pudo enviar la notificación.');
       return;
     }
 
-    setSuccessMessage(
-      audience === 'all' ? `Enviada a ${count ?? 0} miembro(s).` : `Enviada a ${selected?.fullName}.`,
-    );
+    toast(audience === 'all' ? `Enviada a ${count ?? 0} miembro${count === 1 ? '' : 's'}.` : `Enviada a ${selected?.fullName}.`);
     setTitle('');
     setBody('');
     setSelected(null);
@@ -73,8 +70,6 @@ export default function NotificationsPage() {
   return (
     <div className="space-y-8">
       <PageHeader title="Notificaciones" description="Envía un mensaje push a un miembro puntual o a todos los miembros activos." />
-
-      {error && <ErrorBanner>{error}</ErrorBanner>}
 
       <Card className="max-w-lg p-5">
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -125,6 +120,9 @@ export default function NotificationsPage() {
                     onChange={(e) => setQuery(e.target.value)}
                     placeholder="Buscar por nombre..."
                   />
+                  {query.trim() && searchedQuery === query && results.length === 0 && (
+                    <p className="mt-1 px-1 text-xs text-ink-muted">Ningún miembro coincide con &ldquo;{query}&rdquo;.</p>
+                  )}
                   {query.trim() && results.length > 0 && (
                     <div className="mt-1 max-h-48 overflow-y-auto rounded-lg border border-line bg-surface">
                       {results.map((m) => (
@@ -149,22 +147,17 @@ export default function NotificationsPage() {
 
           <div>
             <Label htmlFor="title">Título</Label>
-            <Input id="title" required value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Ej. ¡Nuevo horario!" />
+            <Input id="title" required maxLength={65} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Ej. ¡Nuevo horario!" />
+            <p className="mt-1 text-right text-xs tabular-nums text-ink-muted">{title.length}/65</p>
           </div>
 
           <div>
             <Label htmlFor="body">Mensaje</Label>
-            <textarea
-              id="body"
-              required
-              rows={4}
-              value={body}
-              onChange={(e) => setBody(e.target.value)}
-              className="w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-muted focus:border-ink-muted focus:outline-none focus:ring-2 focus:ring-mint/30"
-            />
+            <Textarea id="body" required rows={4} value={body} onChange={(e) => setBody(e.target.value)} />
+            <p className="mt-1 text-xs text-ink-muted">
+              {body.length > 150 ? 'En la pantalla de bloqueo se verán solo las primeras ~150 letras.' : `${body.length} caracteres`}
+            </p>
           </div>
-
-          {successMessage && <p className="text-sm font-medium text-mint">{successMessage}</p>}
 
           <Button type="submit" disabled={!canSend}>
             {sending ? 'Enviando...' : 'Enviar notificación'}
