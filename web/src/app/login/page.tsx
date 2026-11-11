@@ -43,7 +43,7 @@ export default function LoginPage() {
     <main className="flex min-h-screen flex-col items-center bg-canvas px-4 py-6">
       <div className="my-auto w-full max-w-sm py-6">
         <div className="mb-8 flex justify-center">
-          <Logo className="scale-125" />
+          <Logo width={220} />
         </div>
 
         <Card className="p-6">
