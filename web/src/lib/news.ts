@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/client';
 
-export type NewsCtaHref = '/bookings' | '/progress' | '/leaderboard';
+export type NewsCtaHref = '/bookings' | '/progress' | '/leaderboard' | `https://wa.me/${string}`;
 
 export type NewsItem = {
   id: string;

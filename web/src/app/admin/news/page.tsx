@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { NewsCtaHref, NewsInput, NewsItem, createNews, deleteNews, listAllNews, setNewsActive, updateNews } from '@/lib/news';
+import { NewsInput, NewsItem, createNews, deleteNews, listAllNews, setNewsActive, updateNews } from '@/lib/news';
 import { uploadNewsImage } from '@/lib/storage';
 import { bogotaDate, bogotaInstant, bogotaTime } from '@/lib/classes';
 import { describeError } from '@/lib/errors';
@@ -11,11 +11,15 @@ import { toast, toastError } from '@/components/toast';
 import { CardPreview, DetailPreview } from '@/components/news-preview';
 import { useConfirm } from '@/components/confirm-dialog';
 
-const ctaOptions: { value: NewsCtaHref | ''; label: string }[] = [
+type CtaChoice = '' | '/bookings' | '/progress' | '/leaderboard' | 'whatsapp';
+const WA_PREFIX = 'https://wa.me/';
+
+const ctaOptions: { value: CtaChoice; label: string }[] = [
   { value: '', label: 'Sin botón' },
   { value: '/bookings', label: 'Reservar clases' },
   { value: '/progress', label: 'Progreso' },
   { value: '/leaderboard', label: 'Ranking' },
+  { value: 'whatsapp', label: 'Abrir WhatsApp' },
 ];
 
 // datetime-local values are studio (Bogota) wall-clock time, like every other
@@ -36,7 +40,8 @@ type FormState = {
   bodyText: string; // paragraphs separated by a blank line
   imageUrl: string; // current/uploaded image (edit mode starts with the existing one)
   imageFile: File | null; // pending replacement, uploaded on submit
-  ctaHref: NewsCtaHref | '';
+  ctaHref: CtaChoice;
+  waPhone: string; // digits only, with country code; used when ctaHref === 'whatsapp'
   ctaLabel: string;
   publishedAt: string; // datetime-local value
   active: boolean;
@@ -51,6 +56,7 @@ function emptyForm(): FormState {
     imageUrl: '',
     imageFile: null,
     ctaHref: '',
+    waPhone: '',
     ctaLabel: '',
     publishedAt: toLocalInput(new Date().toISOString()),
     active: true,
@@ -65,7 +71,8 @@ function formFromItem(n: NewsItem): FormState {
     bodyText: n.body.join('\n\n'),
     imageUrl: n.imageUrl,
     imageFile: null,
-    ctaHref: n.ctaHref ?? '',
+    ctaHref: n.ctaHref?.startsWith(WA_PREFIX) ? 'whatsapp' : ((n.ctaHref ?? '') as CtaChoice),
+    waPhone: n.ctaHref?.startsWith(WA_PREFIX) ? n.ctaHref.slice(WA_PREFIX.length) : '',
     ctaLabel: n.ctaLabel ?? '',
     publishedAt: toLocalInput(n.publishedAt),
     active: n.active,
@@ -117,7 +124,7 @@ export default function NewsPage() {
     .map((p) => p.trim())
     .filter(Boolean);
   const hasImage = !!form.imageFile || !!form.imageUrl.trim();
-  const canSubmit = form.tag.trim() && form.title.trim() && form.subtitle.trim() && hasImage && body.length > 0 && (!form.ctaHref || form.ctaLabel.trim());
+  const canSubmit = form.tag.trim() && form.title.trim() && form.subtitle.trim() && hasImage && body.length > 0 && (!form.ctaHref || form.ctaLabel.trim()) && (form.ctaHref !== 'whatsapp' || /^[0-9]{8,15}$/.test(form.waPhone));
 
   function startEdit(n: NewsItem) {
     setEditingId(n.id);
@@ -159,7 +166,7 @@ export default function NewsPage() {
       subtitle: form.subtitle.trim(),
       body,
       imageUrl,
-      ctaHref: form.ctaHref || null,
+      ctaHref: form.ctaHref === 'whatsapp' ? `${WA_PREFIX}${form.waPhone}` : form.ctaHref || null,
       ctaLabel: form.ctaHref ? form.ctaLabel.trim() : null,
       publishedAt: fromLocalInput(form.publishedAt),
       active: form.active,
@@ -288,7 +295,7 @@ export default function NewsPage() {
                 <Select
                   id="ctaHref"
                   value={form.ctaHref}
-                  onChange={(e) => setForm({ ...form, ctaHref: e.target.value as NewsCtaHref | '' })}
+                  onChange={(e) => setForm({ ...form, ctaHref: e.target.value as CtaChoice })}
                 >
                   {ctaOptions.map((o) => (
                     <option key={o.value} value={o.value}>
@@ -308,6 +315,20 @@ export default function NewsPage() {
                 />
               </div>
             </div>
+
+            {form.ctaHref === 'whatsapp' && (
+              <div>
+                <Label htmlFor="waPhone">Número de WhatsApp</Label>
+                <Input
+                  id="waPhone"
+                  inputMode="numeric"
+                  placeholder="573001234567"
+                  value={form.waPhone}
+                  onChange={(e) => setForm({ ...form, waPhone: e.target.value.replace(/\D/g, '') })}
+                />
+                <p className="mt-1 text-xs text-ink-muted">Solo dígitos, con indicativo del país (57 para Colombia). Sin + ni espacios.</p>
+              </div>
+            )}
 
             <label className="flex items-center gap-2 text-sm text-ink-soft">
               <input

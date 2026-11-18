@@ -8,8 +8,8 @@ export type NewsItem = {
   date: string; // ISO (published_at)
   image: string;
   body: string[];
-  // href: mismas pestañas que permite el check de news.cta_href.
-  cta?: { label: string; href: '/bookings' | '/progress' | '/leaderboard' };
+  // href: lo mismo que permite el check de news.cta_href (pestaña o WhatsApp).
+  cta?: { label: string; href: '/bookings' | '/progress' | '/leaderboard' | `https://wa.me/${string}` };
 };
 
 // RLS ("read active news") ya filtra las inactivas.

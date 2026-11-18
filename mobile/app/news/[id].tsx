@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { View, Pressable, Animated, StyleSheet } from 'react-native';
+import { View, Pressable, Animated, StyleSheet, Linking } from 'react-native';
 import { Text } from '../../components/Text';
 import { ArrowRightIcon, CaretLeftIcon } from '../../components/icons';
 import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
@@ -68,7 +68,11 @@ export default function NewsDetail() {
           {item.cta && (
             <Pressable
               style={({ pressed }) => [styles.cta, pressed && styles.ctaPressed]}
-              onPress={() => router.navigate(item.cta!.href)}
+              onPress={() => {
+                const href = item.cta!.href;
+                if (href.startsWith('https://')) Linking.openURL(href);
+                else router.navigate(href as '/bookings' | '/progress' | '/leaderboard');
+              }}
             >
               <Text style={styles.ctaText}>{item.cta.label}</Text>
               <ArrowRightIcon size={18} color={colors.onAccent} weight="bold" />

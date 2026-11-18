@@ -58,7 +58,7 @@ Tema oscuro global: `app/_layout.tsx` envuelve la app en `ThemeProvider` (el `Da
 | `title`, `subtitle` | text | En el detalle, el `subtitle` es la bajada |
 | `body` | text[] | Un párrafo por elemento |
 | `image_url` | text | Hoy son fotos de relleno de Unsplash en B/N (parámetro `sat=-100`) |
-| `cta_label`, `cta_href` | text | Botón opcional: van los dos o ninguno. `cta_href` solo acepta `/bookings`, `/progress` o `/leaderboard` (check en la tabla) |
+| `cta_label`, `cta_href` | text | Botón opcional: van los dos o ninguno. `cta_href` solo acepta `/bookings`, `/progress`, `/leaderboard` o `https://wa.me/<dígitos>` (check en la tabla) |
 | `published_at` | timestamptz | Fecha que se muestra y orden del carrusel (más nueva primero) |
 | `active` | boolean | `false` la oculta sin borrarla |
 

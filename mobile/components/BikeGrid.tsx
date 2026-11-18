@@ -46,7 +46,7 @@ export function BikeGrid({ bikes, selectedBikeId, bookedBikeId, onSelect }: Prop
 }
 
 const styles = themed(() => StyleSheet.create({
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8 },
   bike: {
     width: 52,
     height: 44,
@@ -58,7 +58,7 @@ const styles = themed(() => StyleSheet.create({
   },
   bikeTaken: { backgroundColor: colors.surfaceAlt, borderColor: colors.surfaceAlt },
   bikeFilled: { backgroundColor: colors.accent, borderColor: colors.accent },
-  bikeLabel: { fontSize: 13, fontWeight: '700', color: colors.ink, fontVariant: ['tabular-nums'] },
+  bikeLabel: { textAlign: 'center', includeFontPadding: false, fontSize: 13, fontWeight: '700', color: colors.ink, fontVariant: ['tabular-nums'] },
   bikeLabelFilled: { color: colors.onAccent },
   pressed: { transform: [{ scale: 0.94 }] },
 }));
