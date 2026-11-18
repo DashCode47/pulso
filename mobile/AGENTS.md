@@ -8,7 +8,7 @@ Read the exact versioned docs at https://docs.expo.dev/versions/v57.0.0/ before 
 - Xcode Cloud workflow "Default" starts on tags with prefix `v` (not branch pushes) and archives `mobile/ios/Pulso.xcworkspace`, scheme `Pulso`.
 - `mobile/ios` is gitignored except `ios/ci_scripts/ci_post_clone.sh`, which runs `npm ci` + `expo prebuild` + `pod install` on Xcode Cloud and sets `CFBundleVersion` to `CI_BUILD_NUMBER`.
 - `EXPO_PUBLIC_*` vars live in Xcode Cloud workflow env vars (separate from EAS and `mobile/.env`). Adding a new one means adding it there too. `ci_post_clone.sh` writes them into `mobile/.env` so Metro inlines them, and fails the build if the Supabase ones are missing.
-- `android.versionCode` is not auto-bumped; bump it manually per Play upload.
+- Android release = `npm run release:android` (from `mobile/`): bumps `android.versionCode` +1 and the `expo.version` patch (versionName, shared with iOS) in `app.json`, then builds the signed `.aab` (`android/app/build/outputs/bundle/release/app-release.aab`) for a manual Play Console upload. `npm run release:android -- --keep-version` only bumps versionCode, to ship the version iOS just released. No commit/push/tag: commit `app.json` yourself, and never tag (`v*` starts the iOS build).
 - iOS 27 crashes at launch without the UIScene lifecycle. `plugins/withSceneLifecycle.js` adds it (Expo SDK 57's template doesn't). On an Expo upgrade, if prebuild throws from that plugin, check whether the new template adopts scenes and drop the plugin if so.
 
 # Cached data

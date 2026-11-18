@@ -50,7 +50,8 @@
     "build:aab": "expo prebuild -p android && cd android && gradlew bundleRelease",
     "postinstall": "patch-package",
     "build:apk:fast": "cd android && gradlew assembleRelease",
-    "build:aab:fast": "cd android && gradlew bundleRelease"
+    "build:aab:fast": "cd android && gradlew bundleRelease",
+    "release:android": "node scripts/release-android.js"
   },
   "private": true
 }
