@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
-import { View, Pressable, ScrollView, StyleSheet } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { View, Pressable, ScrollView, RefreshControl, StyleSheet } from 'react-native';
 import { Text } from '../../components/Text';
 import { CalendarBlankIcon, CalendarCheckIcon, CaretRightIcon, CheckIcon, ClockIcon, CloudSlashIcon, ExclamationMarkIcon, LockIcon, MoonIcon, type Icon } from '../../components/icons';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   useUpcomingClasses,
@@ -38,6 +38,20 @@ export default function Bookings() {
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
   const [busyClassId, setBusyClassId] = useState<string | null>(null);
   const insets = useSafeAreaInsets();
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Tabs stay mounted, so the 30s poll alone can show old seats: refetch
+  // every time the tab gets focus, plus pull-to-refresh.
+  useFocusEffect(
+    useCallback(() => {
+      refetch();
+    }, [refetch]),
+  );
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await refetch();
+    setRefreshing(false);
+  }, [refetch]);
 
   // Success toasts clear themselves; errors stay until tapped.
   useEffect(() => {
@@ -202,7 +216,11 @@ export default function Bookings() {
         />
       )}
 
-      <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.list}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.inkMuted} />}
+      >
         {selectedDay && (
           <View style={styles.dayHeader}>
             <Text style={styles.dayHeaderTitle}>{longDate(selectedDay.key)}</Text>
