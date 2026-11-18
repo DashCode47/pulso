@@ -8,6 +8,7 @@ export { BicycleIcon } from 'phosphor-react-native/src/icons/Bicycle';
 export { CalendarBlankIcon } from 'phosphor-react-native/src/icons/CalendarBlank';
 export { CalendarCheckIcon } from 'phosphor-react-native/src/icons/CalendarCheck';
 export { CameraIcon } from 'phosphor-react-native/src/icons/Camera';
+export { ScalesIcon } from 'phosphor-react-native/src/icons/Scales';
 export { CaretDownIcon } from 'phosphor-react-native/src/icons/CaretDown';
 export { CaretLeftIcon } from 'phosphor-react-native/src/icons/CaretLeft';
 export { CaretRightIcon } from 'phosphor-react-native/src/icons/CaretRight';

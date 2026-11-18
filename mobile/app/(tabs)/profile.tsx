@@ -10,6 +10,7 @@ import { useAuthStore } from '../../features/auth/store';
 import { CANCEL_ERROR_MESSAGES } from '../../features/bookings/errorMessages';
 import { useBookingActions } from '../../features/bookings/useBookings';
 import { useChangeAvatar, useMyAvatar } from '../../features/profile/useAvatar';
+import { BodyTracker } from '../../features/profile/BodyTracker';
 import * as backend from '../../services/backend';
 import { ProgressBar } from '../../components/ProgressBar';
 import { Screen } from '../../components/Screen';
@@ -226,6 +227,8 @@ export default function Profile() {
                 <Text style={styles.noMembershipText}>No tienes una membresía activa todavía.</Text>
               </View>
             )}
+
+            <BodyTracker />
 
             <View>
               <View style={styles.tabs} accessibilityRole="tablist">

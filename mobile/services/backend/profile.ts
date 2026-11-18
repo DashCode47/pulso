@@ -171,3 +171,42 @@ export async function listMyHistory(kind: 'upcoming' | 'past', page = 0): Promis
     return { id: r.id, classTitle: c?.title ?? 'Clase eliminada', startsAt: c?.starts_at ?? '', status: r.status };
   });
 }
+
+export type BodyMeasurement = { measuredOn: string; weightKg: number };
+export type MyBody = { heightCm: number | null; measurements: BodyMeasurement[] };
+
+// Oldest first (chart order). ponytail: whole history in one go, a member logs
+// ~12 rows a year; paginate if that ever stops being true.
+export async function getMyBody(): Promise<MyBody> {
+  const userId = await currentUserId();
+  if (!userId) return { heightCm: null, measurements: [] };
+
+  const [profile, rows] = await Promise.all([
+    backend.from('profiles').select('height_cm').eq('id', userId).maybeSingle(),
+    backend.from('body_measurements').select('measured_on, weight_kg').eq('user_id', userId).order('measured_on'),
+  ]);
+  if (profile.error) throw profile.error;
+  if (rows.error) throw rows.error;
+  return {
+    heightCm: profile.data?.height_cm ?? null,
+    // numeric columns come back as strings from PostgREST
+    measurements: (rows.data ?? []).map((r) => ({ measuredOn: r.measured_on, weightKg: Number(r.weight_kg) })),
+  };
+}
+
+export async function updateMyHeight(heightCm: number): Promise<void> {
+  const userId = await currentUserId();
+  if (!userId) throw new Error('Usuario no autenticado');
+  const { error } = await backend.from('profiles').update({ height_cm: heightCm }).eq('id', userId);
+  if (error) throw error;
+}
+
+// measuredOn = the phone's local date (YYYY-MM-DD); same day again replaces it.
+export async function logMyWeight(weightKg: number, measuredOn: string): Promise<void> {
+  const userId = await currentUserId();
+  if (!userId) throw new Error('Usuario no autenticado');
+  const { error } = await backend
+    .from('body_measurements')
+    .upsert({ user_id: userId, measured_on: measuredOn, weight_kg: weightKg }, { onConflict: 'user_id,measured_on' });
+  if (error) throw error;
+}

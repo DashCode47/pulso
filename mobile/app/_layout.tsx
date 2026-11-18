@@ -1,7 +1,7 @@
 import 'react-native-url-polyfill/auto';
 import 'react-native-get-random-values';
 import { QueryClientProvider } from '@tanstack/react-query';
-import { Stack, ThemeProvider, DarkTheme, DefaultTheme, useSegments } from 'expo-router';
+import { Stack, ThemeProvider, DarkTheme, DefaultTheme, router, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 import { Image } from 'expo-image';
@@ -49,6 +49,9 @@ function usePushOpenTracking() {
   useEffect(() => {
     const sub = Notifications?.addNotificationResponseReceivedListener((response) => {
       track('Push Opened', { title: response.notification.request.content.title ?? null });
+      // Pushes that carry data.route (e.g. the monthly weigh-in) open that screen.
+      const route = response.notification.request.content.data?.route;
+      if (typeof route === 'string') router.push(route as never);
     });
     return () => sub?.remove();
   }, []);
