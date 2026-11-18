@@ -273,7 +273,7 @@ export default function NewsPage() {
                 {editingId && form.imageUrl && !form.imageFile
                   ? 'Deja este campo vacío para conservar la imagen actual, o elige un archivo para reemplazarla. '
                   : ''}
-                Recomendado: foto cuadrada o vertical con el sujeto centrado -- se recorta ancha y corta en la tarjeta, alta y angosta en el detalle. Máx. 5 MB.
+                Recomendado: 1280 × 1280 px con lo importante en el centro (~1060 × 700 px) -- se recorta ancha y corta en la tarjeta, alta y angosta en el detalle. Máx. 5 MB.
               </p>
             </div>
 

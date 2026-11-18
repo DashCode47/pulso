@@ -237,7 +237,7 @@ export default function InstructorsPage() {
                     Quitar foto
                   </Button>
                 )}
-                <p className="text-xs text-ink-muted">Cuadrada, cara centrada. Máx. 5 MB.</p>
+                <p className="text-xs text-ink-muted">Cuadrada, 600 × 600 px (mín. 300), cara centrada. Máx. 5 MB.</p>
               </div>
             </div>
 
