@@ -24,9 +24,14 @@ const label = `${json.expo.version} (${json.expo.android.versionCode})`;
 fs.writeFileSync(file, JSON.stringify(json, null, 2) + '\n');
 console.log(`\nAndroid ${label}\n`);
 
+const root = path.join(__dirname, '..');
+const android = path.join(root, 'android');
 try {
   // prebuild rewrites versionCode/versionName in android/app/build.gradle from app.json
-  execSync('npm run build:aab', { stdio: 'inherit', cwd: path.join(__dirname, '..') });
+  execSync('npx expo prebuild -p android', { stdio: 'inherit', cwd: root });
+  // Full path: some Windows shells don't run executables from the current folder.
+  const gradlew = path.join(android, process.platform === 'win32' ? 'gradlew.bat' : 'gradlew');
+  execSync(`"${gradlew}" bundleRelease`, { stdio: 'inherit', cwd: android });
 } catch {
   fs.writeFileSync(file, original);
   console.error('\nBuild falló: app.json restaurado.');

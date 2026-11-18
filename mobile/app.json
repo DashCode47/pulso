@@ -15,7 +15,7 @@
     "android": {
       "package": "com.pulso.ec",
       "googleServicesFile": "./google-services.json",
-      "versionCode": 5,
+      "versionCode": 11,
       "adaptiveIcon": {
         "backgroundColor": "#000000",
         "foregroundImage": "./assets/android-icon-foreground.png"
