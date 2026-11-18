@@ -28,9 +28,10 @@ export function ClassCard({ classInfo, busy, locked, onBook, onCancel, onJoinWai
   // Past the deadline: no cancelling, and the waitlist is closed.
   const beforeDeadline = Date.now() < new Date(classInfo.cancelDeadline).getTime();
 
-  const freeBikes = classInfo.bikes.filter((b) => !b.taken || b.id === bookedBikeId);
+  // Your own bike is taken (by you), so it never counts as "libre".
+  const freeBikes = classInfo.bikes.filter((b) => !b.taken);
   const spotsLeft = Math.max(0, classInfo.capacity - classInfo.bookedCount);
-  const availableCount = bookedBikeId ? freeBikes.length : Math.min(freeBikes.length, spotsLeft);
+  const availableCount = Math.min(freeBikes.length, spotsLeft);
   const isFull = availableCount === 0 && !bookedBikeId;
   const occupancy = classInfo.capacity ? Math.min(1, classInfo.bookedCount / classInfo.capacity) : 1;
 

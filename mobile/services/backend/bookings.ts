@@ -49,13 +49,17 @@ export async function listUpcomingClasses(): Promise<ClassWithBikes[]> {
       .in('status', ['scheduled', 'completed'])
       .gte('starts_at', startOfToday.toISOString())
       .order('starts_at'),
-    backend.from('bikes').select('id, label').eq('active', true).order('label'),
+    // All bikes, not just active ones: a reservation made before the admin put
+    // a bike out of service still points at it and must show as "Tuya"/taken.
+    backend.from('bikes').select('id, label, active'),
     backend.rpc('class_availability'),
   ]);
   if (classesRes.error) throw classesRes.error;
   if (bikesRes.error) throw bikesRes.error;
   if (availabilityRes.error) throw availabilityRes.error;
 
+  // Numeric order (Bike 2 before Bike 10); a plain text sort puts 10 after 1.
+  const allBikes = [...(bikesRes.data ?? [])].sort((x, y) => x.label.localeCompare(y.label, undefined, { numeric: true }));
   const availabilityById = new Map(((availabilityRes.data ?? []) as AvailabilityRow[]).map((a) => [a.class_id, a]));
 
   return (classesRes.data ?? []).map((c) => {
@@ -90,7 +94,9 @@ export async function listUpcomingClasses(): Promise<ClassWithBikes[]> {
     return {
       ...base,
       bookedCount: a.booked_count,
-      bikes: (bikesRes.data ?? []).map((b) => ({ id: b.id, label: b.label, taken: takenBikeIds.has(b.id) })),
+      bikes: allBikes
+        .filter((b) => b.active || takenBikeIds.has(b.id))
+        .map((b) => ({ id: b.id, label: b.label, taken: takenBikeIds.has(b.id) })),
       bookedBikeId: a.my_bike_id,
       myReservationId: a.my_reservation_id,
       myWaitlistEntryId: a.my_waitlist_entry_id,
