@@ -42,7 +42,7 @@ function formatDate(isoDate: string) {
 
 // Studio date as YYYY-MM-DD (en-CA), regardless of the admin's own timezone.
 const today = () => new Date().toLocaleDateString('en-CA', { timeZone: STUDIO_TZ });
-const emptyForm = (): MembershipInput => ({ planName: 'Standard', creditsPerCycle: 10, weeklyGoal: 3, cycleStart: today() });
+const emptyForm = (): MembershipInput => ({ planName: 'Standard', creditsPerCycle: 10, weeklyGoal: 3, cycleStart: today(), cycleEnd: '' });
 // Earliest start whose cycle (start + 1 month - 1 day) hasn't ended yet; the DB
 // enforces the exact rule (cycle_already_over).
 function minCycleStart() {
@@ -145,7 +145,7 @@ export default function MembersPage() {
       const restarts = !latest || latest.status === 'expired' || latest.status === 'cancelled';
       setForm(
         latest
-          ? { planName: latest.planName, creditsPerCycle: latest.creditsPerCycle, weeklyGoal: latest.weeklyGoal, cycleStart: restarts ? today() : latest.cycleStart }
+          ? { planName: latest.planName, creditsPerCycle: latest.creditsPerCycle, weeklyGoal: latest.weeklyGoal, cycleStart: restarts ? today() : latest.cycleStart, cycleEnd: restarts ? '' : latest.cycleEnd }
           : emptyForm(),
       );
     } catch (e) {
@@ -203,7 +203,7 @@ export default function MembersPage() {
       ? await updateMembership(editableMembership.id, form)
       : await createMembership(selected.userId, form);
     // Save plan changes first so the renewal grants the new plan's credits.
-    if (!error && isExpired) ({ error } = await grantCreditsBulk([selected.userId], form.cycleStart));
+    if (!error && isExpired) ({ error } = await grantCreditsBulk([selected.userId], form.cycleStart, form.cycleEnd));
     setSaving(false);
     if (error) {
       toastError(error, 'No se pudo guardar la membresía.');
@@ -505,16 +505,29 @@ export default function MembersPage() {
                   <Label htmlFor="plan">Plan</Label>
                   <Input id="plan" required value={form.planName} onChange={(e) => setForm({ ...form, planName: e.target.value })} />
                 </div>
-                <div>
-                  <Label htmlFor="cycleStart">Inicio (dura 1 mes)</Label>
-                  <Input
-                    id="cycleStart"
-                    type="date"
-                    required
-                    min={form.cycleStart === membership?.cycleStart ? undefined : minCycleStart()}
-                    value={form.cycleStart}
-                    onChange={(e) => setForm({ ...form, cycleStart: e.target.value })}
-                  />
+                <div className="flex gap-3">
+                  <div className="flex-1">
+                    <Label htmlFor="cycleStart">Inicio</Label>
+                    <Input
+                      id="cycleStart"
+                      type="date"
+                      required
+                      min={form.cycleStart === membership?.cycleStart ? undefined : minCycleStart()}
+                      value={form.cycleStart}
+                      // New start -> end goes back to the 1-month default.
+                      onChange={(e) => setForm({ ...form, cycleStart: e.target.value, cycleEnd: '' })}
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <Label htmlFor="cycleEnd">Fin (vacío = 1 mes)</Label>
+                    <Input
+                      id="cycleEnd"
+                      type="date"
+                      min={form.cycleStart > today() ? form.cycleStart : today()}
+                      value={form.cycleEnd}
+                      onChange={(e) => setForm({ ...form, cycleEnd: e.target.value })}
+                    />
+                  </div>
                 </div>
                 <div className="flex gap-3">
                   <div className="flex-1">

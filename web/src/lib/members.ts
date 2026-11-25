@@ -75,11 +75,10 @@ export async function getLatestMembership(userId: string): Promise<Membership | 
   };
 }
 
-// cycleStart is YYYY-MM-DD; cycle_end is derived from it by a DB trigger (+1 month).
-export type MembershipInput = { planName: string; creditsPerCycle: number; weeklyGoal: number; cycleStart: string };
+// Dates are YYYY-MM-DD. cycleEnd '' = let the DB trigger derive it (start + 1 month - 1 day).
+export type MembershipInput = { planName: string; creditsPerCycle: number; weeklyGoal: number; cycleStart: string; cycleEnd: string };
 
-// Grants the first cycle's credits immediately and sets cycle_end to 1 month
-// out (see admin_create_membership() in the DB).
+// Grants the first cycle's credits immediately (see admin_create_membership() in the DB).
 export async function createMembership(userId: string, input: MembershipInput) {
   const supabase = createClient();
   const { error } = await supabase.rpc('admin_create_membership', {
@@ -88,6 +87,7 @@ export async function createMembership(userId: string, input: MembershipInput) {
     p_credits_per_cycle: input.creditsPerCycle,
     p_weekly_goal: input.weeklyGoal,
     p_cycle_start: input.cycleStart,
+    p_cycle_end: input.cycleEnd || null,
   });
   return { error };
 }
@@ -96,7 +96,7 @@ export async function updateMembership(membershipId: string, input: MembershipIn
   const supabase = createClient();
   const { error } = await supabase
     .from('memberships')
-    .update({ plan_name: input.planName, credits_per_cycle: input.creditsPerCycle, weekly_goal: input.weeklyGoal, cycle_start: input.cycleStart })
+    .update({ plan_name: input.planName, credits_per_cycle: input.creditsPerCycle, weekly_goal: input.weeklyGoal, cycle_start: input.cycleStart, cycle_end: input.cycleEnd || null })
     .eq('id', membershipId);
   return { error };
 }
@@ -122,9 +122,9 @@ export async function adjustCredits(userId: string, amount: number, note: string
 // once (reactivates an expired membership too) -- there is no automatic
 // monthly grant anymore, the admin is the one who knows who actually
 // renewed/paid.
-export async function grantCreditsBulk(userIds: string[], cycleStart?: string) {
+export async function grantCreditsBulk(userIds: string[], cycleStart?: string, cycleEnd?: string) {
   const supabase = createClient();
-  const { error } = await supabase.rpc('admin_grant_credits_bulk', { p_user_ids: userIds, p_cycle_start: cycleStart });
+  const { error } = await supabase.rpc('admin_grant_credits_bulk', { p_user_ids: userIds, p_cycle_start: cycleStart, p_cycle_end: cycleEnd || null });
   return { error };
 }
 

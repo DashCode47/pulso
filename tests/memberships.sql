@@ -207,7 +207,10 @@ BEGIN
   -- 6. expiry releases like a cancel; expired members break their streak ---------
   v_class := pg_temp.new_class(v_today + 1, '19:00');
   PERFORM pg_temp.run_as(v_eva, format('select book_class(%L, %L)', v_class, v_t2));
-  UPDATE memberships SET cycle_end = v_today - 1 WHERE user_id = v_eva; -- lapse (trigger only reacts to cycle_start)
+  -- lapse (trigger off: it rejects a past cycle_end)
+  ALTER TABLE memberships DISABLE TRIGGER memberships_set_cycle_end;
+  UPDATE memberships SET cycle_end = v_today - 1 WHERE user_id = v_eva;
+  ALTER TABLE memberships ENABLE TRIGGER memberships_set_cycle_end;
   UPDATE user_stats SET current_streak_weeks = 3 WHERE user_id = v_eva;
 
   PERFORM expire_lapsed_memberships();
@@ -236,6 +239,17 @@ BEGIN
   PERFORM pg_temp.ok(v_m.status = 'active' AND v_m.cycle_end = (v_today + interval '1 month' - interval '1 day')::date,
     'renewal reactivates an expired membership');
   PERFORM pg_temp.ok(pg_temp.balance(v_eva) = 10, 'renewal grants the plan credits');
+
+  -- custom end date: kept as given, survives plan edits, validated
+  UPDATE memberships SET cycle_end = v_today + 90 WHERE user_id = v_eva;
+  UPDATE memberships SET plan_name = 'Trimestral' WHERE user_id = v_eva;
+  PERFORM pg_temp.ok((pg_temp.membership(v_eva)).cycle_end = v_today + 90, 'custom cycle_end is kept');
+  BEGIN
+    UPDATE memberships SET cycle_end = (pg_temp.membership(v_eva)).cycle_start - 1 WHERE user_id = v_eva;
+    RAISE EXCEPTION 'assertion failed: cycle_end before start should be rejected';
+  EXCEPTION WHEN raise_exception THEN
+    PERFORM pg_temp.ok(SQLERRM IN ('cycle_end_before_start', 'cycle_already_over'), 'cycle_end before start is rejected');
+  END;
 
   -- 7. no-show on an auto-attended class undoes its class XP; achievements stay --
   v_class := pg_temp.new_class(v_today - 1, '07:00');

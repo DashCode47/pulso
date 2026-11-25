@@ -2,7 +2,8 @@
 // DB functions raise snake_case codes (`raise exception 'negative_balance'`),
 // which arrive as the error message.
 const messages: Record<string, string> = {
-  cycle_already_over: 'Con esa fecha de inicio la membresía ya habría vencido.',
+  cycle_already_over: 'Con esas fechas la membresía ya habría vencido.',
+  cycle_end_before_start: 'La fecha de fin no puede ser anterior al inicio.',
   negative_balance: 'El saldo no puede quedar negativo.',
   achievement_locked: 'Este logro ya fue desbloqueado y no se puede editar.',
   achievement_deleted: 'Este logro fue eliminado.',

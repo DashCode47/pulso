@@ -56,7 +56,7 @@ El CRUD simple de `classes`, `instructors`, `bikes` y `achievements` va directo 
 ## Créditos y membresías
 
 - **No hay cobro automático.** El admin renueva a mano (`admin_grant_credits_bulk`) cuando el miembro paga.
-- El ciclo dura `cycle_start` + 1 mes − 1 día (`cycle_end` lo calcula un trigger; ambos días incluidos). Fechas en hora de Bogotá (`studio_today()`).
+- El ciclo dura `cycle_start` + 1 mes − 1 día por defecto (`cycle_end` lo calcula un trigger si queda vacío; el admin puede fijar una fecha de fin propia; ambos días incluidos). Fechas en hora de Bogotá (`studio_today()`).
 - Solo se puede reservar (o entrar a lista de espera) una clase cuya fecha cae dentro de `cycle_start..cycle_end`.
 - Los créditos **no se acumulan**: asignar o renovar deja el saldo exactamente en los créditos del plan (`cycle_reset`).
 - Al vencer (cron 00:10 Bogotá) o cancelar, se anulan las reservas futuras y la lista de espera del miembro, y el saldo queda en 0. No hay pausas.
